@@ -60,21 +60,17 @@ GenoFit uses the **ChatGPT-style API** (`chat.completions`) through Nebius Token
 export NEBIUS_API_KEY=your-nebius-api-key
 ```
 
-GenoFit auto-picks the first available model from your Nebius project:
-
-| Use | Preferred models (first match wins) |
-|-----|-------------------------------------|
-| Chat (GenomeCoach) | `openai/gpt-oss-120b`, `moonshotai/Kimi-K2.5`, … |
-| PDF extraction / literature search | `openai/gpt-oss-120b-fast`, `meta-llama/Meta-Llama-3.1-8B-Instruct`, … |
-
-List what your key can use: `GET http://localhost:8000/api/models`
-
-Only set overrides if you want a specific model:
+GenoFit defaults to the **us-central1** Token Factory endpoint and `openai/gpt-oss-120b-fast`:
 
 ```bash
-export GENOFIT_CHAT_MODEL=openai/gpt-oss-120b
-export GENOFIT_LITERATURE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
+export NEBIUS_API_KEY=your-nebius-api-key
+# optional — these are already the defaults:
+export NEBIUS_BASE_URL=https://api.tokenfactory.us-central1.nebius.com/v1/
+export GENOFIT_CHAT_MODEL=openai/gpt-oss-120b-fast
+export GENOFIT_LITERATURE_MODEL=openai/gpt-oss-120b-fast
 ```
+
+List models your key can use: `GET http://localhost:8000/api/models`
 
 If you previously set `GENOFIT_LITERATURE_MODEL=openai/gpt-oss-20b`, **unset it** — that model is not on Nebius.
 

@@ -7,12 +7,12 @@ Default: Nebius Token Factory — same pattern as Nebius docs:
     from openai import OpenAI
 
     client = OpenAI(
-        base_url="https://api.tokenfactory.nebius.com/v1/",
+        base_url="https://api.tokenfactory.us-central1.nebius.com/v1/",
         api_key=os.environ.get("NEBIUS_API_KEY"),
     )
 
     response = client.chat.completions.create(
-        model="MODEL_ID",
+        model="openai/gpt-oss-120b-fast",
         messages=[{"role": "system", "content": "..."}, ...],
     )
 """
@@ -21,23 +21,27 @@ import os
 
 from openai import AsyncOpenAI, OpenAI
 
-DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
+DEFAULT_BASE_URL = "https://api.tokenfactory.us-central1.nebius.com/v1/"
 
-OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL)
+API_BASE_URL = (
+    os.environ.get("NEBIUS_BASE_URL")
+    or os.environ.get("OPENAI_BASE_URL")
+    or DEFAULT_BASE_URL
+)
 
 CHAT_MODEL_DEFAULTS = [
+    "openai/gpt-oss-120b-fast",
     "openai/gpt-oss-120b",
     "moonshotai/Kimi-K2.5",
     "Qwen/Qwen3-235B-A22B-Instruct-2507",
     "meta-llama/Llama-3.3-70B-Instruct",
 ]
 
-# Fast/cheap models for PDF extraction and literature_search
+# PDF extraction and literature_search (same fast model by default)
 LITERATURE_MODEL_DEFAULTS = [
     "openai/gpt-oss-120b-fast",
-    "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "meta-llama/Meta-Llama-3.1-8B-Instruct-fast",
-    "google/gemma-2-2b-it",
+    "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "openai/gpt-oss-120b",
 ]
 
@@ -66,7 +70,7 @@ def has_api_key() -> bool:
 
 def _client_kwargs() -> dict:
     return {
-        "base_url": OPENAI_BASE_URL,
+        "base_url": API_BASE_URL,
         "api_key": get_api_key(),
     }
 
@@ -121,7 +125,8 @@ def get_literature_model() -> str:
 
 def model_setup_hint() -> str:
     return (
-        f"Using chat model `{get_chat_model()}` and extraction model `{get_literature_model()}`. "
-        "Override with GENOFIT_CHAT_MODEL / GENOFIT_LITERATURE_MODEL, "
+        f"Endpoint `{API_BASE_URL}`, chat model `{get_chat_model()}`, "
+        f"extraction model `{get_literature_model()}`. "
+        "Override with NEBIUS_BASE_URL, GENOFIT_CHAT_MODEL / GENOFIT_LITERATURE_MODEL, "
         "or list models via GET /api/models."
     )
