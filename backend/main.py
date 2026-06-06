@@ -146,7 +146,9 @@ def validate_pdf_upload(file: UploadFile) -> None:
         raise HTTPException(400, f"Please upload PDF files only. Got: {file.filename or 'unknown'}")
 
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent
+_ROOT = Path(__file__).resolve().parent.parent
+_DIST = _ROOT / "dist"
+FRONTEND_DIR = _DIST if (_DIST / "index.html").exists() else _ROOT
 
 
 @app.exception_handler(Exception)
