@@ -9,6 +9,7 @@ import os
 import anthropic
 
 MAX_HISTORY_TURNS = 20   # keep last N user+assistant pairs to avoid context bloat
+CHAT_MODEL = os.environ.get("GENOFIT_CHAT_MODEL", "claude-sonnet-4-6")
 
 
 def build_system_prompt(genes: dict, metrics: dict) -> str:
@@ -92,7 +93,7 @@ async def chat_with_context(
     messages = trimmed_history + [{"role": "user", "content": message}]
 
     response = await client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=CHAT_MODEL,
         max_tokens=1000,
         system=build_system_prompt(genes, metrics),
         messages=messages
