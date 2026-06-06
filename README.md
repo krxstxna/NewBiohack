@@ -85,7 +85,7 @@ To start completely fresh:
 
 1. Click **Start over** in the chat sidebar, or **Clear previous session & start fresh** on the welcome screen
 2. Or open `http://localhost:8000/?reset=1`
-3. Or manually delete the database: `rm backend/genosight.db backend/genofit.db`
+3. Or manually delete the database: `rm backend/genofit.db`
 
 Then restart the backend and reload the page.
 

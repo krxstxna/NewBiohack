@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
   <div id="app">
@@ -35,15 +35,18 @@
         <section class="wizard-step" id="step-upload">
           <h2 class="wizard-greeting">Hi, <span id="display-name">there</span></h2>
           <p class="wizard-prompt">please upload test results</p>
+          <p class="wizard-hint">PDF lab reports — select one or many</p>
 
           <label class="upload-circle" id="genesight-label">
-            <input type="file" id="genesight-input" accept=".pdf,application/pdf" hidden />
+            <input type="file" id="genesight-input" accept=".pdf,application/pdf" multiple hidden />
             <span class="upload-circle-icon">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </span>
           </label>
           <div class="upload-status" id="genesight-status"></div>
+          <ul id="lab-file-list" class="lab-file-list"></ul>
 
+          <button class="wizard-btn" id="upload-continue">Continue</button>
           <button class="wizard-link" id="skip-upload">skip</button>
 
           <ul class="category-list">
@@ -138,6 +141,6 @@
 
   </div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

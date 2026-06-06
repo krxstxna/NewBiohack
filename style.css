@@ -156,6 +156,53 @@ html, body {
 
 .wizard-prompt.center { text-align: center; }
 
+.wizard-hint {
+  font-size: 0.82rem;
+  color: var(--hint);
+  margin: -24px 0 20px;
+  text-align: center;
+}
+
+.lab-file-list {
+  width: 100%;
+  list-style: none;
+  margin-top: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.lab-file-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--navy-mid);
+  margin-bottom: 6px;
+}
+
+.lab-file-list li::before {
+  content: "✓";
+  color: var(--blue);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.lab-file-list li.failed::before {
+  content: "✕";
+  color: var(--red-dk);
+}
+
+.lab-file-list li.failed { color: var(--red-dk); }
+
+#upload-continue {
+  margin-top: 16px;
+  width: 100%;
+  max-width: 200px;
+}
+
 .upload-circle {
   width: 120px;
   height: 72px;

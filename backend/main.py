@@ -10,7 +10,7 @@ from pydantic import BaseModel
 import uvicorn
 import os
 
-from parsers.genesight import parse_genesight_pdf
+from parsers.genesight import parse_genesight_pdf, parse_genesight_pdfs, _merge_gene_dicts
 from parsers.apple_health import parse_apple_health_xml
 from services.claude import chat_with_context
 from services.session_store import load_session, save_session, clear_session as wipe_session
@@ -69,7 +69,16 @@ def validate_pdf_upload(file: UploadFile) -> None:
     filename = (file.filename or "").lower()
     content_type = (file.content_type or "").lower()
     if not filename.endswith(".pdf") and content_type != "application/pdf":
-        raise HTTPException(400, "Please upload a PDF file.")
+        raise HTTPException(400, f"Please upload PDF files only. Got: {file.filename or 'unknown'}")
+
+
+def apply_genes_to_session(new_genes: dict) -> dict:
+    had_genes = bool(session["genes"])
+    session["genes"] = _merge_gene_dicts(new_genes, session["genes"])
+    if not had_genes and session["genes"]:
+        session["history"] = []
+    persist_session()
+    return session["genes"]
 
 
 @app.exception_handler(Exception)
@@ -94,10 +103,38 @@ async def upload_genesight(file: UploadFile = File(...)):
         hint = debug or "Make sure it's a GeneSight report PDF with selectable text."
         raise HTTPException(422, f"Could not extract gene data from this PDF. {hint}")
 
-    session["genes"] = genes
-    session["history"] = []
-    persist_session()
-    return {"status": "ok", "genes": genes}
+    merged = apply_genes_to_session(genes)
+    return {"status": "ok", "genes": merged, "files_processed": [file.filename]}
+
+
+@api.post("/upload/genesight/batch")
+async def upload_genesight_batch(files: list[UploadFile] = File(...)):
+    if not files:
+        raise HTTPException(400, "Please upload at least one PDF file.")
+
+    pdf_files = []
+    for file in files:
+        validate_pdf_upload(file)
+        contents = await file.read()
+        pdf_files.append((file.filename or "report.pdf", contents))
+
+    try:
+        new_genes, failures = parse_genesight_pdfs(pdf_files)
+    except Exception as e:
+        raise HTTPException(500, f"Lab result upload failed: {str(e)}")
+
+    processed = [f["filename"] for f in pdf_files if f["filename"] not in {x["filename"] for x in failures}]
+    if not new_genes and failures:
+        detail = failures[0]["error"] if len(failures) == 1 else f"{len(failures)} files could not be parsed."
+        raise HTTPException(422, detail)
+
+    merged = apply_genes_to_session(new_genes) if new_genes else session["genes"]
+    return {
+        "status": "ok",
+        "genes": merged,
+        "files_processed": processed,
+        "files_failed": failures,
+    }
 
 
 @api.post("/upload/apple-health")
@@ -186,6 +223,7 @@ app.include_router(api)
 
 # Legacy routes (older frontend builds called these without /api prefix)
 app.add_api_route("/upload/genesight", upload_genesight, methods=["POST"])
+app.add_api_route("/upload/genesight/batch", upload_genesight_batch, methods=["POST"])
 app.add_api_route("/upload/apple-health", upload_apple_health, methods=["POST"])
 app.add_api_route("/chat", chat, methods=["POST"])
 app.add_api_route("/health", health, methods=["GET"])

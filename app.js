@@ -54,6 +54,10 @@ function showStep(index) {
 
 function goToWelcome() {
   saveOnboarding({ complete: false });
+  uploadedLabFiles.clear();
+  labFileList.innerHTML = "";
+  document.getElementById("genesight-label")?.classList.remove("loaded");
+  setWizardUploadState("genesight", "idle", "");
   workspaceEl.classList.add("hidden");
   onboardingEl.classList.remove("hidden");
   showStep(0);
@@ -103,30 +107,67 @@ welcomeBtn.addEventListener("click", () => {
   showStep(1);
 });
 
-/* ── Step 2: GeneSight upload ───────────────────────────────────── */
+/* ── Step 2: Lab uploads ────────────────────────────────────────── */
+const labFileList = document.getElementById("lab-file-list");
+const uploadContinueBtn = document.getElementById("upload-continue");
+let uploadedLabFiles = new Set();
+
 document.getElementById("skip-upload").addEventListener("click", () => showStep(2));
+uploadContinueBtn.addEventListener("click", () => showStep(2));
+
+function renderLabFileList() {
+  // list is built incrementally in upload handler
+}
+
+function addLabFileRow(name, ok = true) {
+  const li = document.createElement("li");
+  li.textContent = truncate(name, 36);
+  if (!ok) li.classList.add("failed");
+  labFileList.appendChild(li);
+}
 
 document.getElementById("genesight-input").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
 
-  setWizardUploadState("genesight", "loading", `Parsing ${file.name}…`);
+  const newFiles = files.filter((f) => !uploadedLabFiles.has(f.name));
+  if (!newFiles.length) {
+    setWizardUploadState("genesight", "ok", `${uploadedLabFiles.size} file(s) already added`);
+    e.target.value = "";
+    return;
+  }
+
+  setWizardUploadState("genesight", "loading", `Parsing ${newFiles.length} PDF${newFiles.length > 1 ? "s" : ""}…`);
+
   const form = new FormData();
-  form.append("file", file);
+  for (const file of newFiles) form.append("files", file);
 
   try {
-    const res = await fetch(`${API}/upload/genesight`, { method: "POST", body: form });
+    const res = await fetch(`${API}/upload/genesight/batch`, { method: "POST", body: form });
     const data = await parseApiResponse(res);
     if (!res.ok) throw new Error(formatApiError(data, res.status));
 
+    for (const name of data.files_processed || []) {
+      uploadedLabFiles.add(name);
+      addLabFileRow(name, true);
+    }
+    for (const fail of data.files_failed || []) {
+      addLabFileRow(`${fail.filename}: ${fail.error}`, false);
+    }
+
     document.getElementById("genesight-label").classList.add("loaded");
-    setWizardUploadState("genesight", "ok", `${Object.keys(data.genes).length} genes found`);
+    const geneCount = Object.keys(data.genes || {}).length;
+    setWizardUploadState(
+      "genesight",
+      "ok",
+      `${uploadedLabFiles.size} file(s) · ${geneCount} genes total`
+    );
     renderGenes(data.genes);
-    setTimeout(() => showStep(2), 600);
   } catch (err) {
     setWizardUploadState("genesight", "error", formatFetchError(err));
-    e.target.value = "";
   }
+
+  e.target.value = "";
 });
 
 /* ── Step 3: Wearable connect ───────────────────────────────────── */
@@ -376,7 +417,11 @@ function restoreChatHistory(history) {
   try {
     const res = await fetch(`${API}/session`);
     const data = await res.json();
-    if (data.has_genes) renderGenes(data.genes);
+    if (data.has_genes) {
+      renderGenes(data.genes);
+      setWizardUploadState("genesight", "ok", `${Object.keys(data.genes).length} genes loaded`);
+      document.getElementById("genesight-label")?.classList.add("loaded");
+    }
     if (data.has_metrics) renderMetrics(data.metrics);
 
     const hasData = data.has_genes || data.has_metrics || (data.history_length > 0);

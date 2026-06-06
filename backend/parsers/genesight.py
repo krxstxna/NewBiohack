@@ -176,3 +176,24 @@ def parse_genesight_pdf(pdf_bytes: bytes) -> tuple[dict, str]:
         return genes, ""
 
     return {}, "No gene markers were detected in the extracted text."
+
+
+def parse_genesight_pdfs(pdf_files: list[tuple[str, bytes]]) -> tuple[dict, list[dict]]:
+    """
+    Parse multiple PDFs and merge gene results.
+    Returns (merged genes dict, list of failed files with errors).
+    """
+    merged: dict = {}
+    failures: list[dict] = []
+
+    for filename, pdf_bytes in pdf_files:
+        genes, debug = parse_genesight_pdf(pdf_bytes)
+        if genes:
+            merged = _merge_gene_dicts(genes, merged)
+        else:
+            failures.append({
+                "filename": filename,
+                "error": debug or "No gene markers were detected in the extracted text.",
+            })
+
+    return merged, failures
