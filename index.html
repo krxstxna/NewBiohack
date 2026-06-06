@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=14" />
+  <link rel="stylesheet" href="style.css?v=15" />
 </head>
 <body>
   <div id="app">
@@ -100,28 +100,41 @@
 
         <!-- Hub: avatar + four blobs -->
         <div id="dashboard-hub" class="dashboard-panel dashboard-panel--hub">
-          <div class="hub-stage" id="hub-stage">
-            <button type="button" class="hub-blob blob-tl" data-section="training" disabled>Training</button>
-            <button type="button" class="hub-blob blob-tr" data-section="fuel" disabled>Fuel</button>
+          <div class="hub-stage-wrap">
+            <div class="hub-stage" id="hub-stage">
+              <button type="button" class="hub-blob blob-tl" data-section="training" disabled>
+                <span class="hub-blob-label">Training</span>
+              </button>
+              <button type="button" class="hub-blob blob-tr" data-section="fuel" disabled>
+                <span class="hub-blob-label">Fuel</span>
+              </button>
 
-            <div class="hub-avatar-wrap">
-              <div class="hub-avatar" id="dashboard-avatar">
-                <img
-                  class="hub-avatar-img"
-                  id="dashboard-avatar-img"
-                  src="assets/avatars/avatar-peach.png"
-                  alt="Your profile avatar"
-                />
+              <div class="hub-avatar-ring" aria-hidden="true"></div>
+              <div class="hub-avatar-wrap">
+                <div class="hub-avatar" id="dashboard-avatar">
+                  <img
+                    class="hub-avatar-img"
+                    id="dashboard-avatar-img"
+                    src="assets/avatars/avatar-peach.png"
+                    alt="Your profile avatar"
+                  />
+                </div>
+                <p class="hub-archetype-badge hidden" id="hub-archetype-badge"></p>
               </div>
-              <p class="hub-archetype-badge hidden" id="hub-archetype-badge"></p>
-            </div>
 
-            <button type="button" class="hub-blob blob-bl" data-section="recovery" disabled>Rest + Recovery</button>
-            <button type="button" class="hub-blob blob-br" data-section="story" disabled>Your Story</button>
+              <button type="button" class="hub-blob blob-bl" data-section="recovery" disabled>
+                <span class="hub-blob-label">Rest + Recovery</span>
+              </button>
+              <button type="button" class="hub-blob blob-br" data-section="story" disabled>
+                <span class="hub-blob-label">Your Story</span>
+              </button>
+            </div>
           </div>
 
-          <p class="hub-status" id="dashboard-status">Analyzing your profile…</p>
-          <button type="button" class="hub-skip wizard-link" id="dashboard-continue">Continue to chat</button>
+          <div class="hub-footer">
+            <p class="hub-status" id="dashboard-status">Analyzing your profile…</p>
+            <button type="button" class="hub-continue-btn" id="dashboard-continue">Continue to chat</button>
+          </div>
         </div>
 
         <!-- Detail: in-page card (Fuel, Training, etc.) -->
@@ -202,6 +215,6 @@
 
   </div>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

@@ -439,16 +439,15 @@ async function showProfileDashboard(metrics) {
   } catch (err) {
     setHubBlobsEnabled(true);
     setHubStatus(formatFetchError(err), true);
-    const hub = document.getElementById("dashboard-hub");
-    if (hub && !document.getElementById("dashboard-retry")) {
+    const footer = document.querySelector(".hub-footer");
+    if (footer && !document.getElementById("dashboard-retry")) {
       const retry = document.createElement("button");
       retry.id = "dashboard-retry";
-      retry.className = "wizard-link";
+      retry.className = "hub-continue-btn";
       retry.type = "button";
       retry.textContent = "Retry analysis";
-      retry.style.marginTop = "8px";
       retry.onclick = () => showProfileDashboard(metrics);
-      hub.appendChild(retry);
+      footer.appendChild(retry);
     }
   }
 }
