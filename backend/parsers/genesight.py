@@ -55,8 +55,6 @@ def parse_with_claude(text: str) -> dict:
     Use Claude Haiku to extract structured gene data from raw PDF text.
     Returns a dict or empty dict on failure.
     """
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-
     prompt = f"""You are a pharmacogenomics data extractor. Given raw text from a GeneSight report, extract every gene name and its associated genotype/phenotype information.
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
@@ -73,6 +71,7 @@ Raw report text:
 {text[:6000]}"""
 
     try:
+        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=1000,

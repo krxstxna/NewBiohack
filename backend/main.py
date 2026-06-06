@@ -17,9 +17,14 @@ app = FastAPI(title="GenoFit API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
-    allow_origin_regex=".*",
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -47,11 +52,18 @@ def require_api_key() -> None:
 async def upload_genesight(file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(400, "Please upload a PDF file.")
-    require_api_key()
-    contents = await file.read()
-    genes = parse_genesight_pdf(contents)
+    try:
+        contents = await file.read()
+        genes = parse_genesight_pdf(contents)
+    except Exception as e:
+        raise HTTPException(500, f"GeneSight upload failed: {str(e)}")
+
     if not genes:
-        raise HTTPException(422, "Could not extract gene data from this PDF. Make sure it's a GeneSight report.")
+        raise HTTPException(
+            422,
+            "Could not extract gene data from this PDF. Make sure it's a GeneSight report.",
+        )
+
     session["genes"] = genes
     session["history"] = []
     persist_session()
@@ -62,8 +74,12 @@ async def upload_genesight(file: UploadFile = File(...)):
 async def upload_apple_health(file: UploadFile = File(...)):
     if not file.filename.endswith(".xml"):
         raise HTTPException(400, "Please upload the export.xml from Apple Health.")
-    contents = await file.read()
-    metrics = parse_apple_health_xml(contents)
+    try:
+        contents = await file.read()
+        metrics = parse_apple_health_xml(contents)
+    except Exception as e:
+        raise HTTPException(500, f"Apple Health upload failed: {str(e)}")
+
     session["metrics"] = metrics
     persist_session()
     return {"status": "ok", "metrics": metrics}

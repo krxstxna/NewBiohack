@@ -1,5 +1,6 @@
 /* ── Config ─────────────────────────────────────────────────────── */
-const API = window.location.origin.includes("localhost")
+const API = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+  && window.location.port !== "8000"
   ? "http://localhost:8000"
   : window.location.origin;
 
@@ -27,15 +28,14 @@ document.getElementById("genesight-input").addEventListener("change", async (e) 
 
   try {
     const res = await fetch(`${API}/upload/genesight`, { method: "POST", body: form });
-    const data = await res.json();
-
-    if (!res.ok) throw new Error(data.detail || "Upload failed");
+    const data = await parseApiResponse(res);
+    if (!res.ok) throw new Error(formatApiError(data, res.status));
 
     setUploadState("genesight", "ok", file.name);
     renderGenes(data.genes);
     addAiMessage(`✓ I've read your GeneSight report. Found <strong>${Object.keys(data.genes).length} genes</strong>: ${Object.keys(data.genes).join(", ")}. Ask me anything about how they affect your health data.`);
   } catch (err) {
-    setUploadState("genesight", "error", `Error: ${err.message}`);
+    setUploadState("genesight", "error", `Error: ${formatFetchError(err)}`);
   }
 });
 
@@ -51,9 +51,8 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
 
   try {
     const res = await fetch(`${API}/upload/apple-health`, { method: "POST", body: form });
-    const data = await res.json();
-
-    if (!res.ok) throw new Error(data.detail || "Upload failed");
+    const data = await parseApiResponse(res);
+    if (!res.ok) throw new Error(formatApiError(data, res.status));
 
     setUploadState("apple", "ok", file.name);
     renderMetrics(data.metrics);
@@ -61,7 +60,7 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
     const keys = Object.keys(data.metrics);
     addAiMessage(`✓ Apple Health data loaded — I found <strong>${keys.length} metric categories</strong>: ${keys.join(", ")}. Now I can give you genetically-contextualized explanations for your readings.`);
   } catch (err) {
-    setUploadState("apple", "error", `Error: ${err.message}`);
+    setUploadState("apple", "error", `Error: ${formatFetchError(err)}`);
   }
 });
 
@@ -148,28 +147,12 @@ async function send(overrideText) {
       body: JSON.stringify({ message: text }),
     });
 
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      throw new Error(`Server error (${res.status})`);
-    }
-
-    if (!res.ok) {
-      const detail = typeof data.detail === "string"
-        ? data.detail
-        : Array.isArray(data.detail)
-          ? data.detail.map((d) => d.msg).join(", ")
-          : "Request failed";
-      throw new Error(detail);
-    }
+    const data = await parseApiResponse(res);
+    if (!res.ok) throw new Error(formatApiError(data, res.status));
 
     addAiMessage(data.reply);
   } catch (err) {
-    const msg = err.message === "Failed to fetch"
-      ? `Could not reach the backend at ${API}. Start it with: cd backend && python3 main.py`
-      : err.message;
-    addAiMessage(`Something went wrong: ${msg}`, true);
+    addAiMessage(`Something went wrong: ${formatFetchError(err)}`, true);
   }
 
   setLoading(false);
@@ -251,6 +234,27 @@ async function clearSession() {
 }
 
 /* ── Utilities ──────────────────────────────────────────────────── */
+async function parseApiResponse(res) {
+  try {
+    return await res.json();
+  } catch {
+    throw new Error(`Server error (${res.status})`);
+  }
+}
+
+function formatApiError(data, status) {
+  if (typeof data?.detail === "string") return data.detail;
+  if (Array.isArray(data?.detail)) return data.detail.map((d) => d.msg).join(", ");
+  return `Request failed (${status})`;
+}
+
+function formatFetchError(err) {
+  if (err.message === "Failed to fetch") {
+    return `Could not reach the backend at ${API}. Start it with: cd backend && python3 main.py`;
+  }
+  return err.message;
+}
+
 function escapeHtml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
