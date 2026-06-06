@@ -72,6 +72,23 @@ Swagger UI is at `http://localhost:8000/docs`.
 
 You can also open `index.html` directly if you prefer — it will talk to the backend at `localhost:8000`.
 
+### Resetting your session
+
+GenoFit stores data in two places — a hard refresh alone will **not** clear it:
+
+| Location | What it stores |
+|----------|------------------|
+| `backend/genofit.db` | Uploaded genes, metrics, chat history |
+| Browser `localStorage` | Your name and onboarding progress |
+
+To start completely fresh:
+
+1. Click **Start over** in the chat sidebar, or **Clear previous session & start fresh** on the welcome screen
+2. Or open `http://localhost:8000/?reset=1`
+3. Or manually delete the database: `rm backend/genosight.db backend/genofit.db`
+
+Then restart the backend and reload the page.
+
 ---
 
 ## How to get your Apple Health export

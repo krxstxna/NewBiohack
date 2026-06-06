@@ -182,6 +182,12 @@ html, body {
   text-underline-offset: 3px;
 }
 
+.wizard-link.reset-link {
+  margin-top: 16px;
+  font-size: 0.82rem;
+  color: var(--red-dk);
+}
+
 .wizard-link:hover { color: var(--muted); }
 
 .category-list {

@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
   <div id="app">
@@ -26,6 +27,7 @@
           />
           <p class="wizard-tagline">GenoFit is here to help</p>
           <button class="wizard-btn" id="welcome-continue" disabled>Continue</button>
+          <button class="wizard-link reset-link hidden" id="reset-data-btn" type="button">Clear previous session & start fresh</button>
         </section>
 
         <!-- Step 2: Upload test results -->
@@ -135,6 +137,6 @@
 
   </div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

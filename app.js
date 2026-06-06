@@ -288,12 +288,28 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-/* ── Session ────────────────────────────────────────────────────── */
-async function clearSession() {
-  await fetch(`${API}/session`, { method: "DELETE" });
+/* ── Session / reset ────────────────────────────────────────────── */
+async function resetAllData() {
+  try {
+    await fetch(`${API}/session`, { method: "DELETE" });
+  } catch {
+    // Backend may be offline — still clear local state
+  }
   localStorage.removeItem(STORAGE_KEY);
-  location.reload();
+  sessionStorage.clear();
 }
+
+async function clearSession() {
+  await resetAllData();
+  location.href = location.pathname;
+}
+
+function showResetLink(hasData) {
+  const btn = document.getElementById("reset-data-btn");
+  if (btn && hasData) btn.classList.remove("hidden");
+}
+
+document.getElementById("reset-data-btn")?.addEventListener("click", clearSession);
 
 /* ── Utilities ──────────────────────────────────────────────────── */
 async function parseApiResponse(res) {
@@ -329,6 +345,11 @@ function restoreChatHistory(history) {
 
 /* ── Init ───────────────────────────────────────────────────────── */
 (async () => {
+  if (new URLSearchParams(location.search).get("reset") === "1") {
+    await resetAllData();
+    history.replaceState({}, "", location.pathname);
+  }
+
   const saved = loadOnboarding();
   if (saved.name) {
     userName = saved.name;
@@ -343,17 +364,21 @@ function restoreChatHistory(history) {
     if (data.has_genes) renderGenes(data.genes);
     if (data.has_metrics) renderMetrics(data.metrics);
 
-    const hasData = data.has_genes || data.has_metrics;
-    const onboardingDone = saved.complete || hasData;
+    const hasData = data.has_genes || data.has_metrics || (data.history_length > 0);
+    showResetLink(hasData || saved.complete);
+
+    // Only skip onboarding if user explicitly finished it (not just because data exists)
+    const onboardingDone = saved.complete === true;
 
     if (onboardingDone) {
       onboardingEl.classList.add("hidden");
       workspaceEl.classList.remove("hidden");
-      if (saved.name || hasData) saveOnboarding({ complete: true, name: userName || saved.name });
       enterWorkspace();
       restoreChatHistory(data.history || []);
+    } else if (hasData) {
+      showStep(1);
     }
   } catch {
-    // Backend not running — stay on onboarding
+    if (saved.complete) showResetLink(true);
   }
 })();

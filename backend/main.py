@@ -5,6 +5,7 @@ from fastapi import APIRouter, FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 import uvicorn
 import os
@@ -30,6 +31,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+    """Prevent browsers from serving stale HTML/JS/CSS during development."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path == "/" or path.endswith((".html", ".js", ".css")):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
+app.add_middleware(NoCacheStaticMiddleware)
 
 session = load_session()
 
