@@ -215,9 +215,55 @@ When a data domain is missing, note lower confidence and avoid inventing values.
 
 def _strip_json_fences(raw: str) -> str:
     raw = raw.strip()
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
     raw = re.sub(r"^```[a-z]*\n?", "", raw)
     raw = re.sub(r"\n?```$", "", raw)
     return raw.strip()
+
+
+def extract_json_dict(raw: str) -> dict | None:
+    """Parse GenomeCoach JSON from model output (handles fences and preamble text)."""
+    if not raw or not raw.strip():
+        return None
+
+    for candidate in (_strip_json_fences(raw), raw.strip()):
+        try:
+            data = json.loads(candidate)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+
+    start = raw.find("{")
+    if start < 0:
+        return None
+
+    depth = 0
+    for i in range(start, len(raw)):
+        ch = raw[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                snippet = raw[start : i + 1]
+                try:
+                    data = json.loads(snippet)
+                    if isinstance(data, dict):
+                        return data
+                except json.JSONDecodeError:
+                    snippet = re.sub(r",\s*}", "}", snippet)
+                    snippet = re.sub(r",\s*]", "]", snippet)
+                    try:
+                        data = json.loads(snippet)
+                        if isinstance(data, dict):
+                            return data
+                    except json.JSONDecodeError:
+                        return None
+                break
+    return None
 
 
 def _format_tip(tip: dict) -> str:
@@ -278,31 +324,39 @@ def format_coach_response(data: dict) -> str:
 
 def parse_coach_response(raw: str) -> tuple[str, dict | None]:
     """Parse model JSON output; return (display_text, parsed dict or None)."""
-    try:
-        data = json.loads(_strip_json_fences(raw))
-        if isinstance(data, dict):
-            return format_coach_response(data), data
-    except json.JSONDecodeError:
-        pass
+    data = extract_json_dict(raw)
+    if data:
+        return format_coach_response(data), data
     return raw, None
 
 
-async def _run_coach_completion(messages: list) -> str:
-    """Run GenomeCoach with tool-use loop; return raw model text."""
+async def _run_coach_completion(messages: list, *, use_tools: bool = True) -> str:
+    """Run GenomeCoach with optional tool-use loop; return raw model text."""
     client = async_client()
     raw = ""
+    create_kwargs: dict = {
+        "model": get_chat_model(),
+        "max_tokens": 4096,
+        "messages": messages,
+    }
+    if not use_tools:
+        create_kwargs["response_format"] = {"type": "json_object"}
+    else:
+        create_kwargs["tools"] = [LITERATURE_SEARCH_TOOL]
 
-    for _ in range(8):
-        response = await client.chat.completions.create(
-            model=get_chat_model(),
-            max_tokens=3000,
-            messages=messages,
-            tools=[LITERATURE_SEARCH_TOOL],
-        )
+    for _ in range(8 if use_tools else 2):
+        try:
+            response = await client.chat.completions.create(**create_kwargs)
+        except Exception:
+            if not use_tools and "response_format" in create_kwargs:
+                create_kwargs.pop("response_format", None)
+                response = await client.chat.completions.create(**create_kwargs)
+            else:
+                raise
 
         choice = response.choices[0]
         tool_calls = choice.message.tool_calls or []
-        if choice.finish_reason == "tool_calls" and tool_calls:
+        if use_tools and choice.finish_reason == "tool_calls" and tool_calls:
             messages.append(choice.message.model_dump(exclude_none=True))
             for tool_call in tool_calls:
                 if tool_call.function.name == "literature_search":
@@ -317,6 +371,7 @@ async def _run_coach_completion(messages: list) -> str:
                         "content": result,
                     }
                 )
+            create_kwargs["messages"] = messages
             continue
 
         raw = choice.message.content or ""
@@ -326,9 +381,10 @@ async def _run_coach_completion(messages: list) -> str:
 
 
 ANALYZE_PROFILE_MESSAGE = (
-    "Analyze my complete uploaded profile now. Classify my primary and secondary "
-    "archetypes, surface cross-domain connections between genetics, labs, and wearables, "
-    "and provide recovery, training, and nutrition guidance. Return JSON only."
+    "Analyze my complete uploaded profile now using the lab, genetic, and wearable data "
+    "in the system prompt. Classify my primary and secondary archetypes, list at least "
+    "three cross-domain connections (genetics + labs + wearables), and include recovery, "
+    "training, and nutrition arrays. Output a single JSON object only — no markdown, no preamble."
 )
 
 
@@ -339,9 +395,22 @@ async def analyze_profile(genes: dict, metrics: dict, lab_reports: list) -> dict
         {"role": "system", "content": system},
         {"role": "user", "content": ANALYZE_PROFILE_MESSAGE},
     ]
-    raw = await _run_coach_completion(messages)
-    _, structured = parse_coach_response(raw)
-    return structured
+    raw = await _run_coach_completion(messages, use_tools=False)
+    structured = extract_json_dict(raw)
+    if structured:
+        return structured
+
+    messages.append(
+        {
+            "role": "user",
+            "content": (
+                "Your last answer was not valid JSON. Respond with ONLY one JSON object "
+                "matching the schema in the system prompt. No markdown fences or extra text."
+            ),
+        }
+    )
+    raw = await _run_coach_completion(messages, use_tools=False)
+    return extract_json_dict(raw)
 
 
 async def chat_with_context(

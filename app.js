@@ -173,6 +173,7 @@ function renderProfileDashboard(profile, metrics) {
 }
 
 async function showProfileDashboard(metrics) {
+  document.getElementById("dashboard-retry")?.remove();
   onboardingEl.classList.add("hidden");
   workspaceEl.classList.add("hidden");
   profileDashboardEl.classList.remove("hidden");
@@ -196,8 +197,19 @@ async function showProfileDashboard(metrics) {
     document.getElementById("dashboard-archetype-name").textContent = "Profile ready";
     document.getElementById("dashboard-archetype-meta").textContent = "Analysis unavailable";
     document.getElementById("dashboard-summary").textContent =
-      `Wearable data loaded. ${formatFetchError(err)} You can still continue to chat.`;
+      `Wearable data loaded. ${formatFetchError(err)}`;
     renderDashboardMetrics(metrics || {});
+    const actions = document.querySelector(".dashboard-actions");
+    if (actions && !document.getElementById("dashboard-retry")) {
+      const retry = document.createElement("button");
+      retry.id = "dashboard-retry";
+      retry.className = "wizard-link";
+      retry.type = "button";
+      retry.textContent = "Retry analysis";
+      retry.style.marginTop = "12px";
+      retry.onclick = () => showProfileDashboard(metrics);
+      actions.insertBefore(retry, document.getElementById("dashboard-continue"));
+    }
   }
 }
 
