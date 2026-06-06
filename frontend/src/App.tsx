@@ -8,10 +8,17 @@ import { getApiBase, formatApiError, parseApiResponse } from "./api/client";
 import type { Metrics, PodId, Profile } from "./types/profile";
 import { GenoFitLogo } from "./components/ui/GenoFitLogo";
 import { pickAvatar } from "./lib/profileHelpers";
+import { clearSession, fetchSession, syncJunctionWearables } from "./lib/onboardingApi";
 
 type View = "onboarding" | "profile" | "profile-detail" | "chat";
 
 const STORAGE_KEY = "genofit_onboarding";
+
+const JUNCTION_LABELS: Record<string, string> = {
+  oura: "Oura",
+  fitbit: "Fitbit",
+  garmin: "Garmin",
+};
 
 interface OnboardingState {
   complete?: boolean;
@@ -33,6 +40,8 @@ function saveOnboarding(data: Partial<OnboardingState>) {
 
 export default function App() {
   const [view, setView] = useState<View>("onboarding");
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [showReset, setShowReset] = useState(false);
   const [activePod, setActivePod] = useState<PodId>("training");
   const [userName, setUserName] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -65,36 +74,87 @@ export default function App() {
     }
   };
 
-  const showProfileHub = async (name: string) => {
+  const showProfileHub = async (name: string, incomingMetrics: Metrics | null = null) => {
     setUserName(name);
-    saveOnboarding({ name, complete: true });
+    saveOnboarding({ name, complete: true, dashboardViewed: false });
+    if (incomingMetrics) setMetrics(incomingMetrics);
     setView("profile");
     await runProfileAnalyze();
   };
 
-  useEffect(() => {
-    const saved = loadOnboarding();
-    if (saved.name) setUserName(saved.name);
+  const skipToChat = (name: string) => {
+    setUserName(name);
+    saveOnboarding({ name, complete: true, dashboardViewed: true });
+    setView("chat");
+  };
 
+  useEffect(() => {
     (async () => {
+      if (new URLSearchParams(window.location.search).get("reset") === "1") {
+        await clearSession();
+        localStorage.removeItem(STORAGE_KEY);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+
+      const saved = loadOnboarding();
+      if (saved.name) setUserName(saved.name);
+
+      const params = new URLSearchParams(window.location.search);
+      const junctionProvider = params.get("junction_provider");
+      if (junctionProvider) {
+        window.history.replaceState({}, "", window.location.pathname);
+        setOnboardingStep(2);
+        setView("onboarding");
+        setReady(true);
+
+        const label = JUNCTION_LABELS[junctionProvider] || junctionProvider;
+        if (params.get("state") !== "success") {
+          return;
+        }
+
+        try {
+          const data = await syncJunctionWearables(saved.name || "");
+          if (data.metrics) setMetrics(data.metrics);
+          if (saved.name) {
+            await showProfileHub(saved.name, data.metrics || null);
+          }
+        } catch {
+          // Stay on wearable step; user can retry
+        }
+        return;
+      }
+
       try {
-        const res = await fetch(`${getApiBase()}/session`);
-        const data = await parseApiResponse(res);
-        if (data.profile && Object.keys(data.profile).length) setProfile(data.profile);
+        const data = await fetchSession();
+        if (data.profile && Object.keys(data.profile as object).length) {
+          setProfile(data.profile as Profile);
+        }
         if (data.metrics) setMetrics(data.metrics);
         if (data.history) setHistory(data.history);
 
-        if (saved.complete && saved.dashboardViewed) {
+        const hasData =
+          !!data.has_genes ||
+          !!data.has_metrics ||
+          !!data.has_lab_reports ||
+          (data.history_length || 0) > 0;
+        setShowReset(hasData || !!saved.complete);
+
+        const onboardingDone = saved.complete === true;
+        const dashboardViewed = saved.dashboardViewed === true;
+
+        if (onboardingDone && dashboardViewed) {
           setView("chat");
-        } else if (saved.complete && data.has_profile) {
+        } else if (onboardingDone && data.has_profile && data.has_metrics && !dashboardViewed) {
           setView("profile");
           setProfileStatus("Tap a pillar to explore your profile");
-        } else if (!saved.complete) {
-          setView("onboarding");
-        } else {
+        } else if (onboardingDone) {
           setView("chat");
+        } else {
+          setView("onboarding");
+          setOnboardingStep(0);
         }
       } catch {
+        setShowReset(!!saved.complete);
         setView(saved.complete ? "chat" : "onboarding");
       } finally {
         setReady(true);
@@ -120,12 +180,14 @@ export default function App() {
           <motion.div key="onboarding" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <OnboardingFlow
               initialName={userName}
-              onComplete={showProfileHub}
-              onSkipToChat={(name) => {
+              initialStep={onboardingStep}
+              showReset={showReset}
+              onNameSave={(name) => {
                 setUserName(name);
-                saveOnboarding({ name, complete: true, dashboardViewed: true });
-                setView("chat");
+                saveOnboarding({ name });
               }}
+              onProfileReady={showProfileHub}
+              onSkipToChat={skipToChat}
             />
           </motion.div>
         )}
