@@ -9,93 +9,132 @@
 <body>
   <div id="app">
 
-    <!-- Sidebar -->
-    <aside id="sidebar">
-      <div class="logo-row">
-        <div class="logo">G</div>
-        <div>
-          <div class="app-name">GenoFit</div>
-          <div class="app-sub">Genomic wearable interpreter</div>
+    <!-- ── Onboarding wizard ─────────────────────────────────────── -->
+    <div id="onboarding">
+      <div class="wizard-card">
+
+        <!-- Step 1: Name -->
+        <section class="wizard-step active" id="step-welcome">
+          <h1 class="wizard-hello">Hello,</h1>
+          <input
+            type="text"
+            id="name-input"
+            class="name-input"
+            placeholder="name?"
+            autocomplete="given-name"
+            maxlength="40"
+          />
+          <p class="wizard-tagline">GenoFit is here to help</p>
+          <button class="wizard-btn" id="welcome-continue" disabled>Continue</button>
+        </section>
+
+        <!-- Step 2: Upload test results -->
+        <section class="wizard-step" id="step-upload">
+          <h2 class="wizard-greeting">Hi, <span id="display-name">there</span></h2>
+          <p class="wizard-prompt">please upload test results</p>
+
+          <label class="upload-circle" id="genesight-label">
+            <input type="file" id="genesight-input" accept=".pdf,application/pdf" hidden />
+            <span class="upload-circle-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </span>
+          </label>
+          <div class="upload-status" id="genesight-status"></div>
+
+          <button class="wizard-link" id="skip-upload">skip</button>
+
+          <ul class="category-list">
+            <li>Bloodwork</li>
+            <li>ancestry</li>
+            <li>gut microbiome</li>
+            <li>other genetic</li>
+          </ul>
+        </section>
+
+        <!-- Step 3: Connect wearables -->
+        <section class="wizard-step" id="step-wearable">
+          <h2 class="wizard-prompt center">Connect to wearable data</h2>
+
+          <div class="wearable-row">
+            <button class="wearable-btn circle" data-wearable="oura" title="Oura">
+              <span>O</span>
+            </button>
+            <button class="wearable-btn square" data-wearable="garmin" title="Garmin">
+              <span>G</span>
+            </button>
+            <button class="wearable-btn square" data-wearable="apple" title="Apple Health">
+              <span>A</span>
+            </button>
+          </div>
+
+          <button class="wearable-other" id="wearable-other">Other</button>
+          <input type="file" id="apple-input" accept=".xml,text/xml" hidden />
+          <div class="upload-status" id="apple-status"></div>
+
+          <button class="wizard-link" id="skip-wearable">skip</button>
+        </section>
+
+        <div class="step-dots">
+          <span class="dot active" data-step="0"></span>
+          <span class="dot" data-step="1"></span>
+          <span class="dot" data-step="2"></span>
         </div>
       </div>
+    </div>
 
-      <!-- Upload: GeneSight -->
-      <div class="sidebar-section">
-        <div class="section-label">GeneSight Report</div>
-        <label class="upload-btn" id="genesight-label">
-          <span class="upload-icon">⬆</span>
-          <span id="genesight-filename">Upload PDF report</span>
-          <input type="file" id="genesight-input" accept=".pdf" hidden />
-        </label>
-        <div class="upload-status" id="genesight-status"></div>
-      </div>
-
-      <!-- Upload: Apple Health -->
-      <div class="sidebar-section">
-        <div class="section-label">Apple Health</div>
-        <label class="upload-btn" id="apple-label">
-          <span class="upload-icon">⬆</span>
-          <span id="apple-filename">Upload export.xml</span>
-          <input type="file" id="apple-input" accept=".xml" hidden />
-        </label>
-        <div class="upload-status" id="apple-status"></div>
-        <div class="upload-hint">Settings → Health → Export All Health Data</div>
-      </div>
-
-      <!-- Gene summary (populated after upload) -->
-      <div class="sidebar-section" id="gene-section" style="display:none">
-        <div class="section-label">Your Genes</div>
-        <div id="gene-list"></div>
-      </div>
-
-      <!-- Metrics summary -->
-      <div class="sidebar-section" id="metrics-section" style="display:none">
-        <div class="section-label">Latest Metrics</div>
-        <div id="metrics-list"></div>
-      </div>
-
-      <!-- Suggestions -->
-      <div class="sidebar-section suggestions-section">
-        <div class="section-label">Try asking</div>
-        <div class="chip" onclick="sendChip('Why is my HRV lower than average?')">Why is my HRV low?</div>
-        <div class="chip" onclick="sendChip('What does my COMT genotype mean for stress and recovery?')">COMT & stress recovery</div>
-        <div class="chip" onclick="sendChip('How do my genes affect my sleep quality?')">Genes & sleep</div>
-        <div class="chip" onclick="sendChip('Why do I feel tired even after sleeping 7 hours?')">Fatigue patterns</div>
-        <div class="chip" onclick="sendChip('What should I know about my serotonin genes?')">Serotonin genes</div>
-      </div>
-
-      <div class="sidebar-footer">
-        <button class="clear-btn" onclick="clearSession()">Clear session</button>
-      </div>
-    </aside>
-
-    <!-- Chat panel -->
-    <main id="chat-panel">
-      <div id="messages">
-        <div class="msg ai">
-          <div class="avatar">G</div>
-          <div class="bubble">
-            Upload your <strong>GeneSight PDF</strong> and <strong>Apple Health export</strong> using the sidebar, then ask me anything about your data. I'll explain your wearable readings in the context of your genetics.
+    <!-- ── Main workspace (chat) ─────────────────────────────────── -->
+    <div id="workspace" class="hidden">
+      <aside id="sidebar">
+        <div class="logo-row">
+          <div class="logo">G</div>
+          <div>
+            <div class="app-name">GenoFit</div>
+            <div class="app-sub">Hi, <span id="sidebar-name">there</span></div>
           </div>
         </div>
-      </div>
 
-      <div id="input-row">
-        <textarea
-          id="user-input"
-          placeholder="Ask about your data…"
-          rows="1"
-          onkeydown="handleKey(event)"
-          oninput="autoResize(this)"
-        ></textarea>
-        <button id="send-btn" onclick="send()" aria-label="Send">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
-      </div>
-    </main>
+        <div class="sidebar-section" id="gene-section" style="display:none">
+          <div class="section-label">Your Genes</div>
+          <div id="gene-list"></div>
+        </div>
+
+        <div class="sidebar-section" id="metrics-section" style="display:none">
+          <div class="section-label">Latest Metrics</div>
+          <div id="metrics-list"></div>
+        </div>
+
+        <div class="sidebar-section suggestions-section">
+          <div class="section-label">Try asking</div>
+          <div class="chip" onclick="sendChip('Why is my HRV lower than average?')">Why is my HRV low?</div>
+          <div class="chip" onclick="sendChip('What does my COMT genotype mean for stress and recovery?')">COMT & stress recovery</div>
+          <div class="chip" onclick="sendChip('How do my genes affect my sleep quality?')">Genes & sleep</div>
+          <div class="chip" onclick="sendChip('Explain my sleep using my gene data')">Genes & sleep data</div>
+        </div>
+
+        <div class="sidebar-footer">
+          <button class="clear-btn" onclick="clearSession()">Start over</button>
+        </div>
+      </aside>
+
+      <main id="chat-panel">
+        <div id="messages"></div>
+        <div id="input-row">
+          <textarea
+            id="user-input"
+            placeholder="Ask about your data…"
+            rows="1"
+            onkeydown="handleKey(event)"
+            oninput="autoResize(this)"
+          ></textarea>
+          <button id="send-btn" onclick="send()" aria-label="Send">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </main>
+    </div>
 
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

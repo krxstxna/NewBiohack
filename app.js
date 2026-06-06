@@ -9,11 +9,15 @@ function getApiBase() {
 }
 
 const API = getApiBase();
+const STORAGE_KEY = "genofit_onboarding";
 
 /* ── State ──────────────────────────────────────────────────────── */
 let isLoading = false;
+let currentStep = 0;
+let userName = "";
 
-/* ── DOM refs ───────────────────────────────────────────────────── */
+const onboardingEl = document.getElementById("onboarding");
+const workspaceEl  = document.getElementById("workspace");
 const messagesEl   = document.getElementById("messages");
 const inputEl      = document.getElementById("user-input");
 const sendBtn      = document.getElementById("send-btn");
@@ -22,13 +26,76 @@ const geneList     = document.getElementById("gene-list");
 const metricsSection = document.getElementById("metrics-section");
 const metricsList  = document.getElementById("metrics-list");
 
-/* ── Upload: GeneSight PDF ──────────────────────────────────────── */
+const steps = [
+  document.getElementById("step-welcome"),
+  document.getElementById("step-upload"),
+  document.getElementById("step-wearable"),
+];
+const dots = document.querySelectorAll(".step-dots .dot");
+
+/* ── Onboarding persistence ─────────────────────────────────────── */
+function loadOnboarding() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveOnboarding(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...loadOnboarding(), ...data }));
+}
+
+function showStep(index) {
+  currentStep = index;
+  steps.forEach((el, i) => el.classList.toggle("active", i === index));
+  dots.forEach((el, i) => el.classList.toggle("active", i === index));
+}
+
+function finishOnboarding() {
+  saveOnboarding({ complete: true, name: userName });
+  onboardingEl.classList.add("hidden");
+  workspaceEl.classList.remove("hidden");
+  enterWorkspace();
+}
+
+function enterWorkspace() {
+  document.getElementById("sidebar-name").textContent = userName || "there";
+  if (!messagesEl.children.length) {
+    addAiMessage(
+      `Hi ${escapeHtml(userName || "there")} — ask me anything about your genetics and wearable data. ` +
+      `I'll explain your readings in the context of your gene profile.`
+    );
+  }
+}
+
+/* ── Step 1: Name ───────────────────────────────────────────────── */
+const nameInput = document.getElementById("name-input");
+const welcomeBtn = document.getElementById("welcome-continue");
+
+nameInput.addEventListener("input", () => {
+  welcomeBtn.disabled = !nameInput.value.trim();
+});
+
+nameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && nameInput.value.trim()) welcomeBtn.click();
+});
+
+welcomeBtn.addEventListener("click", () => {
+  userName = nameInput.value.trim();
+  document.getElementById("display-name").textContent = userName;
+  saveOnboarding({ name: userName });
+  showStep(1);
+});
+
+/* ── Step 2: GeneSight upload ───────────────────────────────────── */
+document.getElementById("skip-upload").addEventListener("click", () => showStep(2));
+
 document.getElementById("genesight-input").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  setUploadState("genesight", "loading", `Parsing ${file.name}…`);
-
+  setWizardUploadState("genesight", "loading", `Parsing ${file.name}…`);
   const form = new FormData();
   form.append("file", file);
 
@@ -37,22 +104,38 @@ document.getElementById("genesight-input").addEventListener("change", async (e) 
     const data = await parseApiResponse(res);
     if (!res.ok) throw new Error(formatApiError(data, res.status));
 
-    setUploadState("genesight", "ok", file.name);
+    document.getElementById("genesight-label").classList.add("loaded");
+    setWizardUploadState("genesight", "ok", `${Object.keys(data.genes).length} genes found`);
     renderGenes(data.genes);
-    addAiMessage(`✓ I've read your GeneSight report. Found <strong>${Object.keys(data.genes).length} genes</strong>: ${Object.keys(data.genes).join(", ")}. Ask me anything about how they affect your health data.`);
+    setTimeout(() => showStep(2), 600);
   } catch (err) {
-    setUploadState("genesight", "error", `Error: ${formatFetchError(err)}`);
+    setWizardUploadState("genesight", "error", formatFetchError(err));
     e.target.value = "";
   }
 });
 
-/* ── Upload: Apple Health XML ───────────────────────────────────── */
+/* ── Step 3: Wearable connect ───────────────────────────────────── */
+function openAppleUpload() {
+  document.getElementById("apple-input").click();
+}
+
+document.querySelectorAll(".wearable-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".wearable-btn").forEach((b) => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    setWizardUploadState("apple", "idle", "Upload Apple Health export.xml");
+    openAppleUpload();
+  });
+});
+
+document.getElementById("wearable-other").addEventListener("click", openAppleUpload);
+document.getElementById("skip-wearable").addEventListener("click", finishOnboarding);
+
 document.getElementById("apple-input").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  setUploadState("apple", "loading", `Parsing ${file.name}… (this may take a moment)`);
-
+  setWizardUploadState("apple", "loading", `Syncing ${file.name}…`);
   const form = new FormData();
   form.append("file", file);
 
@@ -61,32 +144,22 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
     const data = await parseApiResponse(res);
     if (!res.ok) throw new Error(formatApiError(data, res.status));
 
-    setUploadState("apple", "ok", file.name);
     renderMetrics(data.metrics);
-
-    const keys = Object.keys(data.metrics);
-    addAiMessage(`✓ Apple Health data loaded — I found <strong>${keys.length} metric categories</strong>: ${keys.join(", ")}. Now I can give you genetically-contextualized explanations for your readings.`);
+    setWizardUploadState("apple", "ok", `${Object.keys(data.metrics).length} metrics synced`);
+    setTimeout(finishOnboarding, 600);
   } catch (err) {
-    setUploadState("apple", "error", `Error: ${formatFetchError(err)}`);
+    setWizardUploadState("apple", "error", formatFetchError(err));
+    e.target.value = "";
   }
 });
 
-/* ── Upload state helper ────────────────────────────────────────── */
-function setUploadState(which, state, text) {
-  const label    = document.getElementById(`${which}-label`);
-  const filename = document.getElementById(`${which}-filename`);
-  const status   = document.getElementById(`${which}-status`);
-
-  filename.textContent = state === "loading" ? "Uploading…" : truncate(text, 26);
-  status.textContent   = state === "loading" ? "Processing…" :
-                         state === "error"   ? text : "";
-
-  label.classList.toggle("loaded", state === "ok");
+function setWizardUploadState(which, state, text) {
+  const status = document.getElementById(`${which}-status`);
+  status.textContent = state === "loading" ? text : state === "error" ? text : text;
+  status.classList.toggle("error", state === "error");
 }
 
-function truncate(str, n) { return str.length > n ? str.slice(0, n - 1) + "…" : str; }
-
-/* ── Render gene sidebar ────────────────────────────────────────── */
+/* ── Render sidebar data ────────────────────────────────────────── */
 function renderGenes(genes) {
   geneList.innerHTML = "";
   for (const [gene, info] of Object.entries(genes)) {
@@ -111,10 +184,8 @@ function getDotClass(phenotype = "") {
   return "dot-yellow";
 }
 
-/* ── Render metrics sidebar ─────────────────────────────────────── */
 function renderMetrics(metrics) {
   metricsList.innerHTML = "";
-
   const LABELS = {
     hrv:             m => [`HRV`, `${m.latest_ms ?? m.avg_ms} ms`],
     resting_hr:      m => [`Resting HR`, `${m.latest_bpm ?? m.avg_bpm} bpm`],
@@ -133,7 +204,6 @@ function renderMetrics(metrics) {
     row.innerHTML = `<span class="metric-label">${label}</span><span class="metric-val">${val}</span>`;
     metricsList.appendChild(row);
   }
-
   metricsSection.style.display = "block";
 }
 
@@ -153,10 +223,8 @@ async function send(overrideText) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text }),
     });
-
     const data = await parseApiResponse(res);
     if (!res.ok) throw new Error(formatApiError(data, res.status));
-
     addAiMessage(data.reply);
   } catch (err) {
     addAiMessage(`Something went wrong: ${formatFetchError(err)}`, true);
@@ -176,7 +244,6 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 120) + "px";
 }
 
-/* ── Message rendering ──────────────────────────────────────────── */
 function addUserMessage(text) {
   const div = document.createElement("div");
   div.className = "msg user";
@@ -186,10 +253,7 @@ function addUserMessage(text) {
 }
 
 function addAiMessage(html, isError = false) {
-  // Remove typing indicator if present
-  const typing = document.getElementById("typing-msg");
-  if (typing) typing.remove();
-
+  document.getElementById("typing-msg")?.remove();
   const div = document.createElement("div");
   div.className = "msg ai";
   div.innerHTML = `
@@ -217,10 +281,7 @@ function setLoading(val) {
   sendBtn.disabled = val;
   inputEl.disabled = val;
   if (val) showTyping();
-  else {
-    const t = document.getElementById("typing-msg");
-    if (t) t.remove();
-  }
+  else document.getElementById("typing-msg")?.remove();
 }
 
 function scrollToBottom() {
@@ -230,23 +291,14 @@ function scrollToBottom() {
 /* ── Session ────────────────────────────────────────────────────── */
 async function clearSession() {
   await fetch(`${API}/session`, { method: "DELETE" });
-  geneSection.style.display = "none";
-  metricsSection.style.display = "none";
-  geneList.innerHTML = "";
-  metricsList.innerHTML = "";
-  messagesEl.innerHTML = "";
-  setUploadState("genesight", "idle", "Upload PDF report");
-  setUploadState("apple", "idle", "Upload export.xml");
-  addAiMessage("Session cleared. Upload your files to start again.");
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
 }
 
 /* ── Utilities ──────────────────────────────────────────────────── */
 async function parseApiResponse(res) {
-  try {
-    return await res.json();
-  } catch {
-    throw new Error(`Server error (${res.status})`);
-  }
+  try { return await res.json(); }
+  catch { throw new Error(`Server error (${res.status})`); }
 }
 
 function formatApiError(data, status) {
@@ -266,31 +318,42 @@ function escapeHtml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/* ── Init: load session state if server already has data ─────────── */
-(async () => {
-  try {
-    const res  = await fetch(`${API}/session`);
-    const data = await res.json();
-    if (data.has_genes) {
-      renderGenes(data.genes);
-      setUploadState("genesight", "ok", "GeneSight report loaded");
-    }
-    if (data.has_metrics) {
-      renderMetrics(data.metrics);
-      setUploadState("apple", "ok", "Apple Health data loaded");
-    }
-    restoreChatHistory(data.history || []);
-  } catch {
-    // Server not running yet — that's fine
-  }
-})();
-
 function restoreChatHistory(history) {
   if (!history.length) return;
-
   messagesEl.innerHTML = "";
   for (const turn of history) {
     if (turn.role === "user") addUserMessage(turn.content);
     else if (turn.role === "assistant") addAiMessage(escapeHtml(turn.content));
   }
 }
+
+/* ── Init ───────────────────────────────────────────────────────── */
+(async () => {
+  const saved = loadOnboarding();
+  if (saved.name) {
+    userName = saved.name;
+    nameInput.value = saved.name;
+    welcomeBtn.disabled = false;
+    document.getElementById("display-name").textContent = saved.name;
+  }
+
+  try {
+    const res = await fetch(`${API}/session`);
+    const data = await res.json();
+    if (data.has_genes) renderGenes(data.genes);
+    if (data.has_metrics) renderMetrics(data.metrics);
+
+    const hasData = data.has_genes || data.has_metrics;
+    const onboardingDone = saved.complete || hasData;
+
+    if (onboardingDone) {
+      onboardingEl.classList.add("hidden");
+      workspaceEl.classList.remove("hidden");
+      if (saved.name || hasData) saveOnboarding({ complete: true, name: userName || saved.name });
+      enterWorkspace();
+      restoreChatHistory(data.history || []);
+    }
+  } catch {
+    // Backend not running — stay on onboarding
+  }
+})();
