@@ -49,7 +49,7 @@ export function BubbleRadarPanel({ profile }: BubbleRadarPanelProps) {
   if (!eligible.length) return null;
 
   return (
-    <section className="hidden min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm backdrop-blur-md lg:block" aria-label="Bubble radar chart">
+    <section className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm backdrop-blur-md" aria-label="Bubble radar chart">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Bubble chart</p>
