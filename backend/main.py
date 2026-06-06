@@ -435,7 +435,10 @@ async def profile_analyze():
         raise HTTPException(500, f"Profile analysis failed: {str(e)}")
 
     if not structured:
-        raise HTTPException(502, "Could not parse GenomeCoach analysis.")
+        raise HTTPException(
+            502,
+            "Could not parse GenomeCoach analysis. Try again, or unset GENOFIT_CHAT_MODEL if set to an invalid model.",
+        )
 
     session["profile"] = structured
     persist_session()

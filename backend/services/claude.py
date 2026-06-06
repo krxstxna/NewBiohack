@@ -283,13 +283,11 @@ def extract_json_dict(raw: str) -> dict | None:
     if not raw or not raw.strip():
         return None
 
-    for candidate in (_strip_json_fences(raw), raw.strip()):
-        try:
-            data = json.loads(candidate)
-            if isinstance(data, dict):
-                return data
-        except json.JSONDecodeError:
-            pass
+    candidates = [_strip_json_fences(raw), raw.strip()]
+    for text in candidates:
+        parsed = _try_parse_json_object(text)
+        if parsed:
+            return parsed
 
     start = raw.find("{")
     if start < 0:
@@ -303,22 +301,120 @@ def extract_json_dict(raw: str) -> dict | None:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                snippet = raw[start : i + 1]
-                try:
-                    data = json.loads(snippet)
-                    if isinstance(data, dict):
-                        return data
-                except json.JSONDecodeError:
-                    snippet = re.sub(r",\s*}", "}", snippet)
-                    snippet = re.sub(r",\s*]", "]", snippet)
-                    try:
-                        data = json.loads(snippet)
-                        if isinstance(data, dict):
-                            return data
-                    except json.JSONDecodeError:
-                        return None
+                parsed = _try_parse_json_object(raw[start : i + 1])
+                if parsed:
+                    return parsed
                 break
+
+    # Truncated JSON — try closing open braces / dangling keys
+    snippet = raw[start:].strip()
+    snippet = re.sub(r",\s*$", "", snippet)
+    if re.search(r":\s*$", snippet):
+        snippet = re.sub(r":\s*$", ": null", snippet)
+    for extra in range(1, 12):
+        candidate = snippet + ("}" * extra)
+        candidate = re.sub(r",\s*}", "}", candidate)
+        candidate = re.sub(r",\s*]", "]", candidate)
+        parsed = _try_parse_json_object(candidate)
+        if parsed:
+            return parsed
     return None
+
+
+def _try_parse_json_object(text: str) -> dict | None:
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        cleaned = re.sub(r",\s*}", "}", text)
+        cleaned = re.sub(r",\s*]", "]", cleaned)
+        try:
+            data = json.loads(cleaned)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def is_valid_profile(data: dict) -> bool:
+    """Profile is usable if archetype or at least one dashboard page exists."""
+    if not isinstance(data, dict):
+        return False
+    if data.get("archetype") or data.get("archetype_primary"):
+        return True
+    for key in ("your_story", "train", "fuel", "rest_recovery"):
+        if data.get(key):
+            return True
+    return False
+
+
+def normalize_profile(data: dict) -> dict:
+    """Ensure four-page dashboard keys exist; migrate legacy flat schema."""
+    profile = dict(data)
+
+    if profile.get("archetype_primary") and not profile.get("archetype"):
+        profile["archetype"] = {
+            "primary": profile.pop("archetype_primary"),
+            "secondary": profile.pop("archetype_secondary", []),
+            "scores": profile.pop("archetype_scores", {}),
+            "narrative": profile.get("reply", ""),
+            "matching_markers": [],
+        }
+
+    story = profile.setdefault("your_story", {})
+    if profile.get("connections") and not story.get("connections"):
+        story["connections"] = profile.pop("connections")
+    if profile.get("reply") and not story.get("plain_explanation"):
+        story["plain_explanation"] = {"headline": "", "body": profile.pop("reply"), "analogy": ""}
+
+    train = profile.setdefault("train", {})
+    if profile.get("training") and not train.get("tips"):
+        train["tips"] = profile.pop("training")
+
+    fuel = profile.setdefault("fuel", {})
+    if profile.get("nutrition") and not fuel.get("tips"):
+        fuel["tips"] = profile.pop("nutrition")
+
+    rest = profile.setdefault("rest_recovery", {})
+    if profile.get("recovery") and not rest.get("recovery_tips"):
+        rest["recovery_tips"] = profile.pop("recovery")
+
+    profile.setdefault("flags", [])
+    profile.setdefault(
+        "disclaimer",
+        "Educational only, not medical advice. Discuss flagged labs with your clinician.",
+    )
+    return profile
+
+
+async def build_literature_context(genes: dict, metrics: dict, lab_reports: list) -> str:
+    """Pre-run literature_search for dashboard analysis (avoids tool-loop JSON failures)."""
+    queries: list[str] = []
+    for gene, info in list(genes.items())[:4]:
+        queries.append(f"{gene} {info.get('variant', '')} {info.get('phenotype', '')} athlete recovery")
+
+    for report in lab_reports[:2]:
+        for name in list((report.get("markers") or {}).keys())[:2]:
+            queries.append(f"{name} lab marker athlete training nutrition")
+
+    if metrics.get("hrv"):
+        queries.append("heart rate variability HRV recovery athlete genetics")
+    if metrics.get("sleep"):
+        queries.append("sleep REM deep sleep recovery COMT SLC6A4 athlete")
+
+    if not queries:
+        queries.append("pharmacogenomics wearable recovery athlete personalization")
+
+    client = async_client()
+    notes: list[str] = []
+    for query in queries[:5]:
+        try:
+            notes.append(f"Query: {query}\n{await run_literature_search(client, query)}")
+        except Exception as exc:
+            notes.append(f"Query: {query}\n(literature unavailable: {exc})")
+    return "\n\n---\n\n".join(notes)
 
 
 def _format_tip(tip: dict) -> str:
@@ -423,17 +519,19 @@ async def _run_coach_completion(messages: list, *, use_tools: bool = True) -> st
     """Run GenomeCoach with optional tool-use loop; return raw model text."""
     client = async_client()
     raw = ""
+    working_messages = list(messages)
     create_kwargs: dict = {
         "model": get_chat_model(),
         "max_tokens": 8192,
-        "messages": messages,
+        "messages": working_messages,
     }
     if not use_tools:
         create_kwargs["response_format"] = {"type": "json_object"}
     else:
         create_kwargs["tools"] = [LITERATURE_SEARCH_TOOL]
 
-    for _ in range(8 if use_tools else 2):
+    max_rounds = 6 if use_tools else 2
+    for _ in range(max_rounds):
         try:
             response = await client.chat.completions.create(**create_kwargs)
         except Exception:
@@ -445,72 +543,86 @@ async def _run_coach_completion(messages: list, *, use_tools: bool = True) -> st
 
         choice = response.choices[0]
         tool_calls = choice.message.tool_calls or []
-        if use_tools and choice.finish_reason == "tool_calls" and tool_calls:
-            messages.append(choice.message.model_dump(exclude_none=True))
+        if use_tools and tool_calls:
+            working_messages.append(choice.message.model_dump(exclude_none=True))
             for tool_call in tool_calls:
                 if tool_call.function.name == "literature_search":
                     args = json.loads(tool_call.function.arguments or "{}")
                     result = await run_literature_search(client, args.get("query", ""))
                 else:
                     result = f"Unknown tool: {tool_call.function.name}"
-                messages.append(
+                working_messages.append(
                     {
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "content": result,
                     }
                 )
-            create_kwargs["messages"] = messages
+            create_kwargs["messages"] = working_messages
             continue
 
         raw = choice.message.content or ""
         break
 
+    if use_tools and not extract_json_dict(raw):
+        working_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Stop calling tools. Output the complete dashboard as ONE JSON object with keys: "
+                    "archetype, your_story, train, fuel, rest_recovery, flags, disclaimer."
+                ),
+            }
+        )
+        return await _run_coach_completion(working_messages, use_tools=False)
+
     return raw
 
 
 ANALYZE_PROFILE_MESSAGE = (
-    "Build my full GenomeCoach dashboard now using all uploaded data in the system prompt. "
-    "Call literature_search for each significant gene, lab marker, and wearable pattern, then "
-    "output ONE JSON object with keys: archetype, your_story, train, fuel, rest_recovery, flags, "
-    "disclaimer. Populate all four app pages completely. JSON only — no markdown fences."
+    "Build my full GenomeCoach dashboard JSON using the uploaded data and literature notes. "
+    "Populate archetype, your_story, train, fuel, rest_recovery, flags, and disclaimer. "
+    "Return ONE JSON object only — no markdown fences or extra text."
 )
 
 
 async def analyze_profile(genes: dict, metrics: dict, lab_reports: list) -> dict | None:
     """Run initial GenomeCoach analysis for the profile dashboard (no chat history)."""
+    literature = await build_literature_context(genes, metrics, lab_reports)
     system = build_system_prompt(genes, metrics, lab_reports)
+    if literature:
+        system += f"\n\n== Literature search results (use in citations) ==\n{literature}"
+
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": ANALYZE_PROFILE_MESSAGE},
     ]
-    raw = await _run_coach_completion(messages, use_tools=True)
-    structured = extract_json_dict(raw)
-    if structured:
-        return structured
 
-    messages.append(
-        {
-            "role": "user",
-            "content": (
-                "Output the complete dashboard JSON now (archetype, your_story, train, fuel, "
-                "rest_recovery, flags, disclaimer). Valid JSON only — no markdown or preamble."
-            ),
-        }
-    )
-    raw = await _run_coach_completion(messages, use_tools=False)
-    structured = extract_json_dict(raw)
-    if structured:
-        return structured
+    last_raw = ""
+    for attempt in range(3):
+        raw = await _run_coach_completion(messages, use_tools=False)
+        last_raw = raw or last_raw
+        data = extract_json_dict(raw)
+        if data and is_valid_profile(data):
+            return normalize_profile(data)
 
-    messages.append(
-        {
-            "role": "user",
-            "content": "Respond with ONLY one JSON object matching the schema. No other text.",
-        }
-    )
-    raw = await _run_coach_completion(messages, use_tools=False)
-    return extract_json_dict(raw)
+        messages.append({"role": "assistant", "content": raw or "{}"})
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "That was not valid dashboard JSON. Respond with ONLY one JSON object containing "
+                    "archetype, your_story, train, fuel, rest_recovery, flags, disclaimer. "
+                    f"Attempt {attempt + 2} of 3."
+                ),
+            }
+        )
+
+    # Last resort: accept any parseable dict and normalize
+    data = extract_json_dict(last_raw)
+    if data:
+        return normalize_profile(data)
+    return None
 
 
 async def chat_with_context(
