@@ -41,6 +41,7 @@ export function ChatWorkspace({
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pendingHandledRef = useRef<string | null>(null);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -86,7 +87,8 @@ export function ChatWorkspace({
   }, [history.length, introShown, onHistoryChange, profile, userName]);
 
   useEffect(() => {
-    if (!pendingMessage) return;
+    if (!pendingMessage || pendingHandledRef.current === pendingMessage) return;
+    pendingHandledRef.current = pendingMessage;
     void sendMessage(pendingMessage);
     onPendingMessageHandled?.();
   }, [pendingMessage, onPendingMessageHandled, sendMessage]);
