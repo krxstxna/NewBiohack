@@ -4,6 +4,7 @@ import os
 
 from junction import Junction
 from junction.environment import JunctionEnvironment
+from junction.types.providers import Providers
 
 JUNCTION_BASE_URL = os.environ.get(
     "JUNCTION_BASE_URL", "https://api.sandbox.us.junction.com"
@@ -12,6 +13,13 @@ JUNCTION_BASE_URL = os.environ.get(
 _ENV_MAP = {
     "sandbox": JunctionEnvironment.SANDBOX,
     "production": JunctionEnvironment.PRODUCTION,
+}
+
+_PROVIDER_MAP = {
+    "oura": Providers.OURA,
+    "fitbit": Providers.FITBIT,
+    "garmin": Providers.GARMIN,
+    "whoop": Providers.WHOOP,
 }
 
 
@@ -30,6 +38,12 @@ def get_junction_client() -> Junction:
     return Junction(api_key=key, environment=environment)
 
 
+def resolve_provider(name: str | None) -> Providers | None:
+    if not name:
+        return None
+    return _PROVIDER_MAP.get(name.strip().lower())
+
+
 def get_or_create_user(client_user_id: str) -> str:
     """Return Junction user_id for a stable app-side client_user_id."""
     client = get_junction_client()
@@ -40,8 +54,32 @@ def get_or_create_user(client_user_id: str) -> str:
     return user.user_id
 
 
-def create_link_token(user_id: str) -> str:
-    """Link token for Junction Link widget (Oura, Garmin, etc.)."""
+def get_connected_provider_slugs(user_id: str) -> list[str]:
     client = get_junction_client()
-    resp = client.link.token(user_id=user_id)
-    return resp.link_token
+    providers = client.user.get_connected_providers(user_id)
+    slugs: list[str] = []
+    for entries in providers.values():
+        for entry in entries:
+            slug = getattr(entry, "slug", None) or getattr(entry, "provider", None)
+            if slug:
+                slugs.append(str(slug))
+    return slugs
+
+
+def create_link_token(
+    user_id: str,
+    provider: str | None = None,
+    redirect_url: str | None = None,
+) -> dict:
+    """Link token + web URL for Junction Link OAuth (Oura, Fitbit, etc.)."""
+    client = get_junction_client()
+    kwargs: dict = {"user_id": user_id}
+    resolved = resolve_provider(provider)
+    if resolved:
+        kwargs["provider"] = resolved
+    if redirect_url:
+        kwargs["redirect_url"] = redirect_url
+        kwargs["on_error"] = "redirect"
+        kwargs["on_close"] = "redirect"
+    resp = client.link.token(**kwargs)
+    return {"link_token": resp.link_token, "link_web_url": resp.link_web_url}

@@ -216,6 +216,12 @@ function openAppleUpload() {
   document.getElementById("apple-input").click();
 }
 
+const JUNCTION_PROVIDERS = {
+  oura: "Oura",
+  fitbit: "Fitbit",
+  garmin: "Garmin",
+};
+
 document.querySelectorAll(".wearable-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".wearable-btn").forEach((b) => b.classList.remove("selected"));
@@ -225,7 +231,7 @@ document.querySelectorAll(".wearable-btn").forEach((btn) => {
       setWizardUploadState("apple", "idle", "Upload Apple Health export.xml");
       openAppleUpload();
     } else {
-      syncJunctionWearables(btn.title || wearable);
+      connectJunctionWearable(wearable);
     }
   });
 });
@@ -263,6 +269,32 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
   }
 });
 
+async function connectJunctionWearable(wearable) {
+  const label = JUNCTION_PROVIDERS[wearable] || wearable;
+  setWizardUploadState("apple", "loading", `Opening ${label} sign-in…`);
+
+  const redirectUrl = `${window.location.origin}${window.location.pathname}?junction_provider=${encodeURIComponent(wearable)}`;
+  const params = new URLSearchParams({
+    client_user_id: userName || "genofit-local",
+    provider: wearable,
+    redirect_url: redirectUrl,
+  });
+
+  try {
+    const res = await fetch(`${API}/junction/link-token?${params}`);
+    const data = await parseApiResponse(res);
+    if (!res.ok) throw new Error(formatApiError(data, res.status));
+
+    if (data.link_web_url) {
+      window.location.href = data.link_web_url;
+      return;
+    }
+    throw new Error("Junction did not return a link URL.");
+  } catch (err) {
+    setWizardUploadState("apple", "error", formatFetchError(err));
+  }
+}
+
 async function syncJunctionWearables(wearableLabel) {
   setWizardUploadState("apple", "loading", `Syncing ${wearableLabel} via Junction…`);
   const form = new FormData();
@@ -274,16 +306,53 @@ async function syncJunctionWearables(wearableLabel) {
     if (!res.ok) throw new Error(formatApiError(data, res.status));
 
     renderMetrics(data.metrics);
-    const count = Object.keys(data.metrics || {}).filter((k) => !k.startsWith("junction_") && k !== "sources").length;
-    let status = count ? `${count} metrics synced` : "Connected — no metrics yet";
+    const count = Object.keys(data.metrics || {}).filter(
+      (k) => !k.startsWith("junction_") && k !== "sources"
+    ).length;
+    const connected = data.junction?.connected_providers || [];
+    let status;
+    if (count) {
+      status = `${count} metrics synced`;
+    } else if (connected.length) {
+      status = `${wearableLabel} connected — data may take a few minutes to appear`;
+    } else {
+      status = "No metrics yet — connect a device first";
+    }
     if (data.junction?.sources?.length) {
       status += ` · Junction (${data.junction.sources.join(", ")})`;
     }
+    if (data.junction?.errors?.length) {
+      status += ` · ${data.junction.errors[0]}`;
+    }
     setWizardUploadState("apple", "ok", status);
-    setTimeout(finishOnboarding, 600);
+    if (count || connected.length) {
+      setTimeout(finishOnboarding, connected.length && !count ? 1200 : 600);
+    }
   } catch (err) {
     setWizardUploadState("apple", "error", formatFetchError(err));
   }
+}
+
+async function handleJunctionOAuthReturn() {
+  const params = new URLSearchParams(location.search);
+  const provider = params.get("junction_provider");
+  const state = params.get("state");
+  if (!provider) return false;
+
+  history.replaceState({}, "", location.pathname);
+  onboardingEl.classList.remove("hidden");
+  workspaceEl.classList.add("hidden");
+  showStep(2);
+
+  const label = JUNCTION_PROVIDERS[provider] || provider;
+  if (state !== "success") {
+    const detail = params.get("error") || params.get("detail") || "Connection was cancelled or failed.";
+    setWizardUploadState("apple", "error", `${label}: ${detail}`);
+    return true;
+  }
+
+  await syncJunctionWearables(label);
+  return true;
 }
 
 function setWizardUploadState(which, state, text) {
@@ -495,6 +564,8 @@ function restoreChatHistory(history) {
     welcomeBtn.disabled = false;
     document.getElementById("display-name").textContent = saved.name;
   }
+
+  if (await handleJunctionOAuthReturn()) return;
 
   try {
     const res = await fetch(`${API}/session`);

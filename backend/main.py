@@ -17,8 +17,10 @@ from services.openai_client import has_api_key as has_openai_api_key
 from services.openai_client import list_available_model_ids, model_setup_hint
 from services.junction_client import (
     create_link_token,
+    get_connected_provider_slugs,
     get_or_create_user,
     has_junction_api_key,
+    resolve_provider,
 )
 from parsers.junction_wearables import fetch_junction_metrics, merge_wearable_metrics
 from services.session_store import load_session, save_session, clear_session as wipe_session
@@ -93,6 +95,7 @@ def _merge_junction_metrics(metrics: dict, client_user_id: str = "") -> tuple[di
             "user_id": junction_user_id,
             "sources": junction_payload.get("sources", []),
             "errors": junction_payload.get("junction_errors", []),
+            "connected_providers": get_connected_provider_slugs(junction_user_id),
         }
     except Exception as exc:
         junction_meta = {"errors": [str(exc)]}
@@ -228,18 +231,33 @@ async def junction_sync(client_user_id: str = Form("")):
 
 
 @api.get("/junction/link-token")
-async def junction_link_token(client_user_id: str = ""):
-    """Link token for Junction Link widget (connect Oura / Garmin / etc.)."""
+async def junction_link_token(
+    client_user_id: str = "",
+    provider: str = "",
+    redirect_url: str = "",
+):
+    """Link token + web URL for Junction Link OAuth (Oura, Fitbit, Garmin, etc.)."""
     if not has_junction_api_key():
         raise HTTPException(503, "Junction API is not configured.")
+
+    if provider and not resolve_provider(provider):
+        raise HTTPException(400, f"Unsupported provider: {provider}")
 
     try:
         uid = _junction_client_user_id(client_user_id)
         junction_user_id = get_or_create_user(uid)
         session["junction_user_id"] = junction_user_id
         persist_session()
-        token = create_link_token(junction_user_id)
-        return {"link_token": token, "junction_user_id": junction_user_id}
+        token_data = create_link_token(
+            junction_user_id,
+            provider or None,
+            redirect_url or None,
+        )
+        return {
+            **token_data,
+            "junction_user_id": junction_user_id,
+            "connected_providers": get_connected_provider_slugs(junction_user_id),
+        }
     except Exception as e:
         raise HTTPException(502, str(e)) from e
 

@@ -87,7 +87,7 @@ export JUNCTION_ENV=sandbox
 export JUNCTION_BASE_URL=https://api.sandbox.us.junction.com
 ```
 
-Oura/Garmin buttons call `POST /api/junction/sync` (requires devices connected in Junction). Apple Health upload also pulls Junction data when the key is set.
+Oura/Garmin buttons open **Junction Link** (OAuth) to connect your device, then sync metrics. Apple Health upload also pulls Junction data when the key is set.
 
 ### 4. Start the backend
 
