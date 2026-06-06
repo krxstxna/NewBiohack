@@ -12,7 +12,7 @@ from parsers.apple_health import parse_apple_health_xml
 from services.claude import chat_with_context
 from services.session_store import load_session, save_session, clear_session as wipe_session
 
-app = FastAPI(title="GenoSight API")
+app = FastAPI(title="GenoFit API")
 
 app.add_middleware(
     CORSMiddleware,

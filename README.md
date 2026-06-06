@@ -1,4 +1,4 @@
-# GenoSight
+# GenoFit
 
 A local platform that interprets your Apple Health wearable data through the lens of your GeneSight pharmacogenomic report using Claude AI.
 
@@ -8,14 +8,14 @@ A local platform that interprets your Apple Health wearable data through the len
 
 Upload your GeneSight PDF → upload your Apple Health export → ask questions in plain English.
 
-GenoSight explains **why** your HRV, sleep, resting HR, and recovery scores look the way they do, grounded in your specific gene variants (COMT, SLC6A4, MTHFR, CYP2D6, CYP2C19, etc.).
+GenoFit explains **why** your HRV, sleep, resting HR, and recovery scores look the way they do, grounded in your specific gene variants (COMT, SLC6A4, MTHFR, CYP2D6, CYP2C19, etc.).
 
 ---
 
 ## Project structure
 
 ```
-genosight/
+genofit/
 ├── backend/
 │   ├── main.py                  # FastAPI app (upload + chat endpoints)
 │   ├── parsers/
@@ -108,7 +108,7 @@ You can also open `frontend/index.html` directly if you prefer — it will talk 
 - Whoop: export CSV from whoop.com → add `parsers/whoop.py`
 
 **Persist sessions**
-- Sessions are stored in `backend/genosight.db` (SQLite) and survive backend restarts
+- Sessions are stored in `backend/genofit.db` (SQLite) and survive backend restarts
 - Chat history is restored when you reload the page
 
 **Add more genes**
@@ -124,5 +124,5 @@ You can also open `frontend/index.html` directly if you prefer — it will talk 
 ## Notes
 
 - All data stays local — nothing is sent anywhere except to the Anthropic API for chat responses
-- Sessions persist in SQLite (`backend/genosight.db`) until you clear them or delete the file
+- Sessions persist in SQLite (`backend/genofit.db`) until you clear them or delete the file
 - Large Apple Health XML files (300MB+) may take 10–20 seconds to parse

@@ -56,7 +56,7 @@ def build_system_prompt(genes: dict, metrics: dict) -> str:
 
     metric_block = "\n".join(metric_lines) if metric_lines else "  No wearable data loaded yet."
 
-    return f"""You are GenoSight, an expert AI that interprets wearable health data through the lens of pharmacogenomic (GeneSight) results. Your job is to explain WHY wearable readings look the way they do, grounded in the user's specific genetic variants.
+    return f"""You are GenoFit, an expert AI that interprets wearable health data through the lens of pharmacogenomic (GeneSight) results. Your job is to explain WHY wearable readings look the way they do, grounded in the user's specific genetic variants.
 
 == User's GeneSight Gene Profile ==
 {gene_block}
