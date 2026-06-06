@@ -4,7 +4,8 @@ import { ARCHETYPE_TAGLINES, POD_CONFIG } from "../types/profile";
 export function pickAvatar(): string {
   const key = "genofit_profile_avatar";
   const saved = localStorage.getItem(key);
-  const avatars = ["/assets/avatars/avatar-peach.png", "/assets/avatars/avatar-green.png"];
+  const base = import.meta.env.BASE_URL;
+  const avatars = [`${base}assets/avatars/avatar-peach.png`, `${base}assets/avatars/avatar-green.png`];
   if (saved && avatars.includes(saved)) return saved;
   const chosen = avatars[Math.floor(Math.random() * avatars.length)];
   localStorage.setItem(key, chosen);

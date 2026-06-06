@@ -19,9 +19,22 @@ export interface Profile {
 export interface ProfilePage {
   bubble_teaser?: string;
   hero_summary?: string;
+  plain_explanation?: { headline?: string; body?: string; analogy?: string };
   bullet_summary?: string[];
   recommendation_sections?: Record<string, string[]>;
   tips?: { title?: string; what?: string; why?: string }[];
+  visual_metrics?: VisualMetric[];
+}
+
+export interface VisualMetric {
+  id?: string;
+  label?: string;
+  value?: number | string;
+  unit?: string;
+  min?: number;
+  max?: number;
+  score?: number;
+  normalized?: number;
 }
 
 export interface Metrics {
@@ -30,6 +43,8 @@ export interface Metrics {
   sleep?: { avg_hours?: number; avg_deep_min?: number; avg_rem_min?: number };
   steps?: { avg_daily?: number };
   spo2?: { latest_pct?: number };
+  vo2_max?: { latest?: number };
+  active_calories?: { avg_daily_kcal?: number };
   charts?: Record<string, { date: string; value: number }[]>;
 }
 

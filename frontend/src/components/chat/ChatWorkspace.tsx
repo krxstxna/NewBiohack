@@ -2,18 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui/Button";
 import { GenoFitLogo } from "../ui/GenoFitLogo";
 import { getApiBase, formatApiError, parseApiResponse } from "../../api/client";
+import { BubbleRadarPanel, hasBubbleRadarData } from "./BubbleRadarPanel";
+import type { Metrics, Profile } from "../../types/profile";
 
 interface ChatWorkspaceProps {
   userName: string;
   history: { role: string; content: string }[];
+  profile: Profile | null;
+  metrics: Metrics | null;
   onHistoryChange: (history: { role: string; content: string }[]) => void;
   onOpenProfile: () => void;
 }
 
-export function ChatWorkspace({ userName, history, onHistoryChange, onOpenProfile }: ChatWorkspaceProps) {
+export function ChatWorkspace({ userName, history, profile, metrics, onHistoryChange, onOpenProfile }: ChatWorkspaceProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const showRadar = hasBubbleRadarData(profile, metrics);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -89,23 +94,26 @@ export function ChatWorkspace({ userName, history, onHistoryChange, onOpenProfil
       </div>
 
       <div className="border-t border-slate-100 bg-white/70 p-3 backdrop-blur-md sm:px-6 sm:py-4">
-        <div className="mx-auto flex max-w-3xl gap-2">
-          <textarea
-            className="min-h-[44px] flex-1 resize-none rounded-2xl bg-white/90 px-4 py-3 text-sm text-slate-800 ring-1 ring-slate-200 outline-none transition-all duration-200 focus:ring-2 focus:ring-emerald-400"
-            placeholder="Ask about your data…"
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-          />
-          <Button className="px-5" onClick={send} disabled={loading || !input.trim()}>
-            Send
-          </Button>
+        <div className={`mx-auto grid gap-3 ${showRadar ? "max-w-5xl lg:grid-cols-[minmax(0,1fr)_340px]" : "max-w-3xl"}`}>
+          <div className="flex gap-2 self-end">
+            <textarea
+              className="min-h-[44px] flex-1 resize-none rounded-2xl bg-white/90 px-4 py-3 text-sm text-slate-800 ring-1 ring-slate-200 outline-none transition-all duration-200 focus:ring-2 focus:ring-emerald-400"
+              placeholder="Ask about your data…"
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            <Button className="px-5" onClick={send} disabled={loading || !input.trim()}>
+              Send
+            </Button>
+          </div>
+          {showRadar ? <BubbleRadarPanel profile={profile} metrics={metrics} /> : null}
         </div>
       </div>
     </div>

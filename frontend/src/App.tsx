@@ -226,6 +226,8 @@ export default function App() {
             <ChatWorkspace
               userName={userName}
               history={history}
+              profile={profile}
+              metrics={metrics}
               onHistoryChange={setHistory}
               onOpenProfile={() => setView("profile")}
             />

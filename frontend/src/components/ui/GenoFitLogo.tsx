@@ -6,7 +6,8 @@ interface GenoFitLogoProps {
 }
 
 export function GenoFitLogo({ variant = "dark", className = "h-10 w-auto" }: GenoFitLogoProps) {
-  const src = variant === "dark" ? "/assets/genofit-logo.svg" : "/assets/genofit-logo-light.svg";
+  const base = import.meta.env.BASE_URL;
+  const src = variant === "dark" ? `${base}assets/genofit-logo.svg` : `${base}assets/genofit-logo-light.svg`;
 
   return (
     <img
