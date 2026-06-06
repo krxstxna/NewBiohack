@@ -25,7 +25,8 @@ NewBiohack/
     │   ├── genesight.py         # PDF → gene dict (Claude Haiku + regex fallback)
     │   └── apple_health.py      # export.xml → summarized metrics
     ├── services/
-    │   └── claude.py            # Claude Sonnet chat with genomic system prompt
+    │   ├── claude.py            # GenomeCoach chat via Nebius (Claude models)
+    │   └── nebius_client.py     # Nebius Token Factory OpenAI-compatible client
     └── requirements.txt
 ```
 
@@ -36,7 +37,7 @@ NewBiohack/
 ### 1. Prerequisites
 
 - Python 3.10+
-- An Anthropic API key → https://console.anthropic.com
+- A Nebius Token Factory API key → https://tokenfactory.nebius.com/
 
 ### 2. Install backend dependencies
 
@@ -45,19 +46,34 @@ cd backend
 pip install -r requirements.txt
 ```
 
-If chat was failing with a server error after a previous install, reinstall to pick up the Anthropic SDK fix:
+If chat was failing with a server error after a previous install, reinstall dependencies:
 
 ```bash
 pip install -r requirements.txt --upgrade
 ```
 
-### 3. Set your API key
+### 3. Set your Nebius API key
+
+All Claude inference (chat, PDF parsing, literature search) runs through **Nebius Token Factory** credits — not the Anthropic API directly.
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export NEBIUS_API_KEY=your-nebius-api-key
 ```
 
-Add this to your `~/.zshrc` or `~/.bashrc` to make it permanent.
+Optional overrides:
+
+```bash
+# Default: anthropic/claude-sonnet-4-6
+export GENOFIT_CHAT_MODEL=anthropic/claude-sonnet-4-6
+
+# Default: anthropic/claude-haiku-4-5-20251001 (PDF parsing + literature search)
+export GENOFIT_LITERATURE_MODEL=anthropic/claude-haiku-4-5-20251001
+
+# Default: https://api.tokenfactory.nebius.com/v1/
+export NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1/
+```
+
+Use the exact Claude model IDs shown in your Nebius Token Factory dashboard. Add this to your `~/.zshrc` or `~/.bashrc` to make it permanent.
 
 ### 4. Start the backend
 
@@ -116,7 +132,7 @@ Then restart the backend and reload the page.
 ## How gene parsing works
 
 1. Text is extracted from your GeneSight PDF using `pdfplumber`
-2. Claude Haiku reads the text and extracts gene + phenotype pairs as structured JSON
+2. Claude Haiku (via Nebius) reads the text and extracts gene + phenotype pairs as structured JSON
 3. If the API call fails, a regex fallback scans for known gene names and phenotype terms
 4. The parsed genes are stored in-memory for the session
 
@@ -146,6 +162,6 @@ Then restart the backend and reload the page.
 
 ## Notes
 
-- All data stays local — nothing is sent anywhere except to the Anthropic API for chat responses
+- All data stays local except inference requests sent to **Nebius Token Factory** (Claude models billed to your Nebius credits)
 - Sessions persist in SQLite (`backend/genofit.db`) until you clear them or delete the file
 - Large Apple Health XML files (300MB+) may take 10–20 seconds to parse

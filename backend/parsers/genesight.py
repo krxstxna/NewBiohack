@@ -10,9 +10,10 @@ Strategy:
 import re
 import json
 import os
-import anthropic
 import pdfplumber
 import io
+
+from services.nebius_client import LITERATURE_MODEL, has_nebius_api_key, sync_client
 
 
 KNOWN_GENES = [
@@ -60,13 +61,14 @@ Raw report text:
 {text[:12000]}"""
 
     try:
-        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+        client = sync_client()
+        response = client.chat.completions.create(
+            model=LITERATURE_MODEL,
             max_tokens=1500,
+            response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt}],
         )
-        raw = response.content[0].text.strip()
+        raw = (response.choices[0].message.content or "").strip()
         raw = re.sub(r"^```[a-z]*\n?", "", raw)
         raw = re.sub(r"\n?```$", "", raw)
         parsed = json.loads(raw)
@@ -167,7 +169,7 @@ def parse_genesight_pdf(pdf_bytes: bytes) -> tuple[dict, str]:
     regex_genes = parse_with_regex(text)
     claude_genes = {}
 
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    if has_nebius_api_key():
         claude_genes = parse_with_claude(text)
 
     genes = _merge_gene_dicts(claude_genes, regex_genes)

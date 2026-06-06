@@ -10,13 +10,12 @@ import json
 import os
 import re
 
-import anthropic
-
 from parsers.genesight import (
     extract_text_from_pdf,
     parse_with_regex as parse_genes_regex,
     _merge_gene_dicts,
 )
+from services.nebius_client import LITERATURE_MODEL, has_nebius_api_key, sync_client
 
 MARKER_PATTERNS = [
     (r"ferritin", r"ferritin[:\s]+(\d+\.?\d*)\s*(ng/mL|ug/L|µg/L)?", "Ferritin"),
@@ -81,13 +80,14 @@ Text:
 {text[:10000]}"""
 
     try:
-        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+        client = sync_client()
+        response = client.chat.completions.create(
+            model=LITERATURE_MODEL,
             max_tokens=2000,
+            response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt}],
         )
-        raw = response.content[0].text.strip()
+        raw = (response.choices[0].message.content or "").strip()
         raw = re.sub(r"^```[a-z]*\n?", "", raw)
         raw = re.sub(r"\n?```$", "", raw)
         parsed = json.loads(raw)
@@ -119,7 +119,7 @@ def parse_lab_report_pdf(filename: str, pdf_bytes: bytes) -> tuple[dict, str | N
         }, None
 
     report = None
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    if has_nebius_api_key():
         report = parse_with_claude(text, filename)
 
     genes = parse_genes_regex(text)

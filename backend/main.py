@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import anthropic
 from fastapi import APIRouter, FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -8,11 +7,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 import uvicorn
 import os
+from openai import APIError, APIStatusError, AuthenticationError
 
 from parsers.lab_report import parse_lab_reports_batch
 from parsers.genesight import _merge_gene_dicts
 from parsers.apple_health import parse_apple_health_xml
 from services.claude import chat_with_context
+from services.nebius_client import has_nebius_api_key
 from services.session_store import load_session, save_session, clear_session as wipe_session
 
 app = FastAPI(title="GenoFit API")
@@ -80,10 +81,10 @@ def apply_lab_upload(new_reports: list, new_genes: dict) -> None:
 
 
 def require_api_key() -> None:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    if not has_nebius_api_key():
         raise HTTPException(
             503,
-            "ANTHROPIC_API_KEY is not set. Export it before using chat.",
+            "NEBIUS_API_KEY is not set. Create a key at https://tokenfactory.nebius.com/ and export it before using chat.",
         )
 
 
@@ -183,15 +184,15 @@ async def chat(req: ChatRequest):
             lab_reports=session.get("lab_reports", []),
             history=session["history"],
         )
-    except anthropic.AuthenticationError:
+    except AuthenticationError:
         raise HTTPException(
             401,
-            "Invalid Anthropic API key. Check that ANTHROPIC_API_KEY is set correctly in your shell.",
+            "Invalid Nebius API key. Check that NEBIUS_API_KEY is set correctly in your shell.",
         )
-    except anthropic.APIStatusError as e:
-        raise HTTPException(502, f"Claude API error: {e.message}")
-    except anthropic.APIError as e:
-        raise HTTPException(502, f"Claude API error: {str(e)}")
+    except APIStatusError as e:
+        raise HTTPException(502, f"Nebius API error: {e.message}")
+    except APIError as e:
+        raise HTTPException(502, f"Nebius API error: {str(e)}")
     except Exception as e:
         raise HTTPException(500, f"Chat failed: {str(e)}")
 
@@ -209,7 +210,7 @@ async def chat(req: ChatRequest):
 def health():
     return {
         "status": "ok",
-        "has_api_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "has_api_key": has_nebius_api_key(),
     }
 
 

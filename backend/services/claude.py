@@ -1,18 +1,18 @@
 """
-Claude chat service — GenomeCoach analyst.
+GenomeCoach chat service — Claude via Nebius Token Factory.
 
 Builds a rich system prompt from lab reports, genetics, and wearables,
 returns structured JSON internally and a formatted athlete-facing reply.
 """
 
 import json
-import os
 import re
 
-import anthropic
+from openai import AsyncOpenAI
+
+from services.nebius_client import CHAT_MODEL, LITERATURE_MODEL, async_client
 
 MAX_HISTORY_TURNS = 20
-CHAT_MODEL = os.environ.get("GENOFIT_CHAT_MODEL", "claude-sonnet-4-6")
 
 REPORT_TYPE_LABELS = {
     "bloodwork": "Bloodwork",
@@ -95,39 +95,45 @@ Respond ONLY with valid JSON matching the provided schema. No markdown fences, n
 }"""
 
 LITERATURE_SEARCH_TOOL = {
-    "name": "literature_search",
-    "description": (
-        "Look up pharmacogenomics, sports medicine, and recovery literature for a "
-        "gene variant, abnormal lab marker, or wearable pattern before making recommendations."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "Gene variant, lab marker, or wearable pattern to research",
-            }
+    "type": "function",
+    "function": {
+        "name": "literature_search",
+        "description": (
+            "Look up pharmacogenomics, sports medicine, and recovery literature for a "
+            "gene variant, abnormal lab marker, or wearable pattern before making recommendations."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Gene variant, lab marker, or wearable pattern to research",
+                }
+            },
+            "required": ["query"],
         },
-        "required": ["query"],
     },
 }
 
-LITERATURE_MODEL = os.environ.get("GENOFIT_LITERATURE_MODEL", "claude-haiku-4-5-20251001")
 
-
-async def run_literature_search(client: anthropic.AsyncAnthropic, query: str) -> str:
-    response = await client.messages.create(
+async def run_literature_search(client: AsyncOpenAI, query: str) -> str:
+    response = await client.chat.completions.create(
         model=LITERATURE_MODEL,
         max_tokens=500,
-        system=(
-            "You are a pharmacogenomics and sports medicine literature assistant. "
-            "Summarize 2–3 relevant peer-reviewed findings for the query. "
-            "Include gene/marker names, expected physiology, and practical athlete implications. "
-            "Be concise and cite study types (e.g. meta-analysis, RCT) when known."
-        ),
-        messages=[{"role": "user", "content": query}],
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a pharmacogenomics and sports medicine literature assistant. "
+                    "Summarize 2–3 relevant peer-reviewed findings for the query. "
+                    "Include gene/marker names, expected physiology, and practical athlete implications. "
+                    "Be concise and cite study types (e.g. meta-analysis, RCT) when known."
+                ),
+            },
+            {"role": "user", "content": query},
+        ],
     )
-    return response.content[0].text
+    return response.choices[0].message.content or ""
 
 
 def build_system_prompt(genes: dict, metrics: dict, lab_reports: list) -> str:
@@ -291,48 +297,41 @@ async def chat_with_context(
     lab_reports: list,
     history: list,
 ) -> tuple[str, list, dict | None]:
-    client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = async_client()
 
     trimmed_history = history[-(MAX_HISTORY_TURNS * 2):]
-    messages = trimmed_history + [{"role": "user", "content": message}]
-
     system = build_system_prompt(genes, metrics, lab_reports)
+    messages = [{"role": "system", "content": system}, *trimmed_history, {"role": "user", "content": message}]
     raw = ""
 
     for _ in range(8):
-        response = await client.messages.create(
+        response = await client.chat.completions.create(
             model=CHAT_MODEL,
             max_tokens=3000,
-            system=system,
-            tools=[LITERATURE_SEARCH_TOOL],
             messages=messages,
+            tools=[LITERATURE_SEARCH_TOOL],
         )
 
-        if response.stop_reason == "tool_use":
-            messages.append({"role": "assistant", "content": response.content})
-            tool_results = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-                if block.name == "literature_search":
-                    query = block.input.get("query", "")
-                    result = await run_literature_search(client, query)
+        choice = response.choices[0]
+        tool_calls = choice.message.tool_calls or []
+        if choice.finish_reason == "tool_calls" and tool_calls:
+            messages.append(choice.message.model_dump(exclude_none=True))
+            for tool_call in tool_calls:
+                if tool_call.function.name == "literature_search":
+                    args = json.loads(tool_call.function.arguments or "{}")
+                    result = await run_literature_search(client, args.get("query", ""))
                 else:
-                    result = f"Unknown tool: {block.name}"
-                tool_results.append(
+                    result = f"Unknown tool: {tool_call.function.name}"
+                messages.append(
                     {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
                         "content": result,
                     }
                 )
-            messages.append({"role": "user", "content": tool_results})
             continue
 
-        for block in response.content:
-            if block.type == "text":
-                raw = block.text
-                break
+        raw = choice.message.content or ""
         break
 
     display_reply, structured = parse_coach_response(raw)
