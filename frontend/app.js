@@ -142,17 +142,34 @@ async function send(overrideText) {
   setLoading(true);
 
   try {
-    const res  = await fetch(`${API}/chat`, {
+    const res = await fetch(`${API}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text }),
     });
-    const data = await res.json();
 
-    if (!res.ok) throw new Error(data.detail || "Request failed");
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Server error (${res.status})`);
+    }
+
+    if (!res.ok) {
+      const detail = typeof data.detail === "string"
+        ? data.detail
+        : Array.isArray(data.detail)
+          ? data.detail.map((d) => d.msg).join(", ")
+          : "Request failed";
+      throw new Error(detail);
+    }
+
     addAiMessage(data.reply);
   } catch (err) {
-    addAiMessage(`Something went wrong: ${err.message}`, true);
+    const msg = err.message === "Failed to fetch"
+      ? `Could not reach the backend at ${API}. Start it with: cd backend && python3 main.py`
+      : err.message;
+    addAiMessage(`Something went wrong: ${msg}`, true);
   }
 
   setLoading(false);

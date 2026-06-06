@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import anthropic
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -79,12 +80,25 @@ async def chat(req: ChatRequest):
     if not session["genes"] and not session["metrics"]:
         return {"reply": "Please upload your GeneSight PDF and Apple Health export first, then I can help interpret your data."}
     require_api_key()
-    reply, updated_history = await chat_with_context(
-        message=req.message,
-        genes=session["genes"],
-        metrics=session["metrics"],
-        history=session["history"],
-    )
+    try:
+        reply, updated_history = await chat_with_context(
+            message=req.message,
+            genes=session["genes"],
+            metrics=session["metrics"],
+            history=session["history"],
+        )
+    except anthropic.AuthenticationError:
+        raise HTTPException(
+            401,
+            "Invalid Anthropic API key. Check that ANTHROPIC_API_KEY is set correctly in your shell.",
+        )
+    except anthropic.APIStatusError as e:
+        raise HTTPException(502, f"Claude API error: {e.message}")
+    except anthropic.APIError as e:
+        raise HTTPException(502, f"Claude API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, f"Chat failed: {str(e)}")
+
     session["history"] = updated_history
     persist_session()
     return {"reply": reply}

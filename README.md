@@ -46,6 +46,12 @@ cd backend
 pip install -r requirements.txt
 ```
 
+If chat was failing with a server error after a previous install, reinstall to pick up the Anthropic SDK fix:
+
+```bash
+pip install -r requirements.txt --upgrade
+```
+
 ### 3. Set your API key
 
 ```bash
