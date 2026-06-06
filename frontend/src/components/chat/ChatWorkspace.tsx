@@ -39,6 +39,7 @@ export function ChatWorkspace({
   const [loading, setLoading] = useState(false);
   const [introShown, setIntroShown] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sendMessage = useCallback(
@@ -71,7 +72,10 @@ export function ChatWorkspace({
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [history, loading]);
 
   useEffect(() => {
@@ -95,7 +99,7 @@ export function ChatWorkspace({
   };
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
+    <div className="flex h-screen flex-col lg:flex-row">
       <ChatSidebar
         userName={userName}
         genes={genes}
@@ -108,8 +112,17 @@ export function ChatWorkspace({
       />
 
       <div className="flex min-h-0 flex-1 flex-col bg-[#F8FAFC]">
-        <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6">
-          <div className="mx-auto flex max-w-3xl flex-col gap-3">
+        <div className="shrink-0 border-b border-slate-100 bg-white/50 px-3 py-3 backdrop-blur-md sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            <BubbleRadarPanel profile={profile} />
+          </div>
+        </div>
+
+        <div
+          ref={messagesRef}
+          className="mx-auto h-64 w-full max-w-3xl shrink-0 overflow-y-auto px-3 py-4 sm:h-72 sm:px-6"
+        >
+          <div className="flex flex-col gap-3">
             {history.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 {msg.role === "assistant" ? (
@@ -142,31 +155,28 @@ export function ChatWorkspace({
           </div>
         </div>
 
-        <div className="border-t border-slate-100 bg-white/70 p-3 backdrop-blur-md sm:px-6 sm:py-4">
-          <div className="mx-auto flex max-w-5xl flex-col gap-3 lg:flex-row">
-            <div className="flex min-w-0 flex-1 gap-2">
-              <textarea
-                ref={textareaRef}
-                className="min-h-[44px] flex-1 resize-none rounded-2xl bg-white/90 px-4 py-3 text-sm text-slate-800 ring-1 ring-slate-200 outline-none transition-all duration-200 focus:ring-2 focus:ring-emerald-400"
-                placeholder="Ask about your data…"
-                rows={1}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  autoResize();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void sendMessage(input);
-                  }
-                }}
-              />
-              <Button className="px-5" onClick={() => void sendMessage(input)} disabled={loading || !input.trim()}>
-                Send
-              </Button>
-            </div>
-            <BubbleRadarPanel profile={profile} />
+        <div className="mt-auto shrink-0 border-t border-slate-100 bg-white/70 p-3 backdrop-blur-md sm:px-6 sm:py-4">
+          <div className="mx-auto flex max-w-3xl gap-2">
+            <textarea
+              ref={textareaRef}
+              className="min-h-[44px] flex-1 resize-none rounded-2xl bg-white/90 px-4 py-3 text-sm text-slate-800 ring-1 ring-slate-200 outline-none transition-all duration-200 focus:ring-2 focus:ring-emerald-400"
+              placeholder="Ask about your data…"
+              rows={1}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                autoResize();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void sendMessage(input);
+                }
+              }}
+            />
+            <Button className="px-5" onClick={() => void sendMessage(input)} disabled={loading || !input.trim()}>
+              Send
+            </Button>
           </div>
         </div>
       </div>
