@@ -62,16 +62,10 @@ python main.py
 ```
 
 The API runs at `http://localhost:8000`.  
-You can check it's alive at `http://localhost:8000/docs` (auto-generated Swagger UI).
+Open **http://localhost:8000** in your browser for the full app (frontend + API).  
+Swagger UI is at `http://localhost:8000/docs`.
 
-### 5. Open the frontend
-
-Open `frontend/index.html` directly in your browser:
-
-```bash
-open frontend/index.html        # macOS
-# or just double-click the file
-```
+You can also open `frontend/index.html` directly if you prefer — it will talk to the backend at `localhost:8000`.
 
 ---
 
@@ -90,6 +84,7 @@ open frontend/index.html        # macOS
 | POST | `/upload/genesight` | Upload GeneSight PDF |
 | POST | `/upload/apple-health` | Upload Apple Health XML |
 | POST | `/chat` | Send a chat message |
+| GET  | `/health` | Health check + API key status |
 | GET  | `/session` | Get current session state |
 | DELETE | `/session` | Clear all session data |
 | GET | `/docs` | Swagger UI |
@@ -113,7 +108,8 @@ open frontend/index.html        # macOS
 - Whoop: export CSV from whoop.com → add `parsers/whoop.py`
 
 **Persist sessions**
-- Replace the in-memory `session` dict in `main.py` with a SQLite/DuckDB store
+- Sessions are stored in `backend/genosight.db` (SQLite) and survive backend restarts
+- Chat history is restored when you reload the page
 
 **Add more genes**
 - The `KNOWN_GENES` list in `parsers/genesight.py` can be extended
@@ -128,5 +124,5 @@ open frontend/index.html        # macOS
 ## Notes
 
 - All data stays local — nothing is sent anywhere except to the Anthropic API for chat responses
-- The session resets when you restart the backend (no database by default)
+- Sessions persist in SQLite (`backend/genosight.db`) until you clear them or delete the file
 - Large Apple Health XML files (300MB+) may take 10–20 seconds to parse

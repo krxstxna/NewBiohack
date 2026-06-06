@@ -1,0 +1,68 @@
+"""
+SQLite-backed session store.
+
+Persists genes, metrics, and chat history across backend restarts.
+Designed for single-user local use (one session row).
+"""
+
+import json
+import sqlite3
+from pathlib import Path
+
+DB_PATH = Path(__file__).resolve().parent.parent / "genosight.db"
+
+
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    with _connect() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS session (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                genes TEXT NOT NULL DEFAULT '{}',
+                metrics TEXT NOT NULL DEFAULT '{}',
+                history TEXT NOT NULL DEFAULT '[]'
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO session (id, genes, metrics, history)
+            VALUES (1, '{}', '{}', '[]')
+            """
+        )
+
+
+def load_session() -> dict:
+    init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT genes, metrics, history FROM session WHERE id = 1").fetchone()
+        if not row:
+            return {"genes": {}, "metrics": {}, "history": []}
+        return {
+            "genes": json.loads(row["genes"]),
+            "metrics": json.loads(row["metrics"]),
+            "history": json.loads(row["history"]),
+        }
+
+
+def save_session(genes: dict, metrics: dict, history: list) -> None:
+    init_db()
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE session
+            SET genes = ?, metrics = ?, history = ?
+            WHERE id = 1
+            """,
+            (json.dumps(genes), json.dumps(metrics), json.dumps(history)),
+        )
+
+
+def clear_session() -> None:
+    save_session({}, {}, [])

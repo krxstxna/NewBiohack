@@ -1,5 +1,7 @@
 /* ── Config ─────────────────────────────────────────────────────── */
-const API = "http://localhost:8000";
+const API = window.location.origin.includes("localhost")
+  ? "http://localhost:8000"
+  : window.location.origin;
 
 /* ── State ──────────────────────────────────────────────────────── */
 let isLoading = false;
@@ -241,9 +243,26 @@ function escapeHtml(str) {
   try {
     const res  = await fetch(`${API}/session`);
     const data = await res.json();
-    if (data.has_genes)   renderGenes(data.genes);
-    if (data.has_metrics) renderMetrics(data.metrics);
+    if (data.has_genes) {
+      renderGenes(data.genes);
+      setUploadState("genesight", "ok", "GeneSight report loaded");
+    }
+    if (data.has_metrics) {
+      renderMetrics(data.metrics);
+      setUploadState("apple", "ok", "Apple Health data loaded");
+    }
+    restoreChatHistory(data.history || []);
   } catch {
     // Server not running yet — that's fine
   }
 })();
+
+function restoreChatHistory(history) {
+  if (!history.length) return;
+
+  messagesEl.innerHTML = "";
+  for (const turn of history) {
+    if (turn.role === "user") addUserMessage(turn.content);
+    else if (turn.role === "assistant") addAiMessage(escapeHtml(turn.content));
+  }
+}
