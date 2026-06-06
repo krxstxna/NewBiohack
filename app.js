@@ -431,6 +431,11 @@ function escapeHtml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function truncate(str, n) {
+  if (!str) return "";
+  return str.length > n ? str.slice(0, n - 1) + "…" : str;
+}
+
 function restoreChatHistory(history) {
   if (!history.length) return;
   messagesEl.innerHTML = "";
