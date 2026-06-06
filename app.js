@@ -23,6 +23,17 @@ const PROFILE_AVATARS = [
   "assets/avatars/avatar-green.png",
 ];
 
+const ARCHETYPE_TAGLINES = {
+  forge: "You burn long, not bright",
+  drift: "Performance follows calm",
+  volt: "High-fidelity biology",
+  titan: "Slow power, deep recovery",
+  blitz: "Metabolism moves fast",
+  pulse: "Your heart leads",
+  surge: "Pressure builds beneath",
+  prime: "Clean signal, pure execution",
+};
+
 const DASHBOARD_SECTIONS = {
   training: {
     title: "Training",
@@ -53,6 +64,14 @@ const DASHBOARD_SECTIONS = {
 function getPrimaryArchetype(profile) {
   if (!profile) return {};
   return profile.archetype?.primary || profile.archetype_primary || {};
+}
+
+function getArchetypeHeader(profile) {
+  const primary = getPrimaryArchetype(profile);
+  const id = (primary.id || "").toLowerCase();
+  const name = primary.name || (id ? id.charAt(0).toUpperCase() + id.slice(1) : "");
+  const tagline = profile?.archetype?.tagline || ARCHETYPE_TAGLINES[id] || "";
+  return { name, tagline };
 }
 
 function getSecondaryArchetypes(profile) {
@@ -113,6 +132,26 @@ function appendVisualMetrics(list, metrics) {
     const val = m.value != null && m.value !== "" ? m.value : "—";
     const unit = m.unit ? ` ${m.unit}` : "";
     appendListItem(list, `${m.label}: ${val}${unit}`);
+  }
+}
+
+function appendStackNotes(list, stackNotes) {
+  if (!stackNotes) return;
+  if (Array.isArray(stackNotes)) {
+    for (const note of stackNotes) {
+      appendListItem(list, note.note ? `${note.item}: ${note.note}` : note.item || "");
+    }
+    return;
+  }
+  if (stackNotes.metabolism_summary) appendListItem(list, stackNotes.metabolism_summary);
+  for (const note of stackNotes.item_notes || []) {
+    appendListItem(list, note.note ? `${note.item}: ${note.note}` : note.item || "");
+  }
+  for (const add of stackNotes.suggested_additions || []) {
+    appendListItem(list, `Consider: ${add}`);
+  }
+  for (const avoid of stackNotes.avoid || []) {
+    appendListItem(list, `Avoid: ${avoid}`);
   }
 }
 
@@ -270,16 +309,15 @@ function openDashboardDetail(sectionId) {
   document.getElementById("dashboard-detail").classList.remove("hidden");
   document.getElementById("detail-back").classList.remove("hidden");
 
-  document.getElementById("detail-title").textContent = cfg.title;
+  const page = cachedProfile?.[cfg.pageKey] || {};
+  const { name, tagline } = getArchetypeHeader(cachedProfile);
+  document.getElementById("detail-title").textContent = name || cfg.title;
   const subtitleEl = document.getElementById("detail-subtitle");
-  subtitleEl.textContent = cfg.subtitle || "";
-  subtitleEl.style.display = cfg.subtitle ? "block" : "none";
+  subtitleEl.textContent = tagline || cfg.subtitle || "";
+  subtitleEl.style.display = subtitleEl.textContent ? "block" : "none";
 
   const list = document.getElementById("detail-list");
   list.innerHTML = "";
-
-  const page = cachedProfile?.[cfg.pageKey] || {};
-  let subtitle = cfg.subtitle;
 
   if (sectionId === "story") {
     const arch = cachedProfile?.archetype || {};
@@ -298,7 +336,6 @@ function openDashboardDetail(sectionId) {
       if (!sec?.name) continue;
       appendListItem(list, `Secondary: ${sec.name}${sec.score != null ? ` · ${sec.score}` : ""}`);
     }
-    if (arch.tagline) appendListItem(list, arch.tagline);
     if (arch.narrative) appendListItem(list, arch.narrative);
     const plain = page.plain_explanation || {};
     if (plain.headline) appendListItem(list, plain.headline);
@@ -322,6 +359,7 @@ function openDashboardDetail(sectionId) {
     appendVisualMetrics(list, page.visual_metrics);
     if (page.this_week_focus) appendListItem(list, `This week: ${page.this_week_focus}`);
     if (page.watch_for) appendListItem(list, `Watch for: ${page.watch_for}`);
+    appendConnections(list, page.connections);
   } else if (sectionId === "fuel") {
     if (page.hero_summary) appendListItem(list, page.hero_summary);
     appendDataInsights(list, page.data_insights);
@@ -329,12 +367,8 @@ function openDashboardDetail(sectionId) {
     appendTipItems(list, page.tips || cachedProfile?.nutrition);
     appendBulletList(list, page.bullet_summary);
     appendVisualMetrics(list, page.visual_metrics);
-    for (const note of page.stack_notes || []) {
-      appendListItem(list, note.note ? `${note.item}: ${note.note}` : note.item || "");
-    }
-    for (const add of page.suggested_additions || []) {
-      appendListItem(list, `Consider: ${add}`);
-    }
+    appendStackNotes(list, page.stack_notes);
+    appendConnections(list, page.connections);
   } else if (sectionId === "recovery") {
     if (page.hero_summary) appendListItem(list, page.hero_summary);
     const hero = page.hero || {};
@@ -351,14 +385,8 @@ function openDashboardDetail(sectionId) {
     if (page.tonight || page.tonight_action) {
       appendListItem(list, `Tonight: ${page.tonight || page.tonight_action}`);
     }
+    appendConnections(list, page.connections);
   }
-
-  if (subtitle && page.hero_summary && sectionId !== "story") {
-    subtitleEl.textContent = page.hero_summary;
-  } else {
-    subtitleEl.textContent = subtitle || "";
-  }
-  subtitleEl.style.display = subtitleEl.textContent ? "block" : "none";
 
   if (!list.children.length) {
     appendListItem(list, "e.g. recommendations based on your genes, labs, and wearables");
