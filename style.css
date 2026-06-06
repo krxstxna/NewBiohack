@@ -1146,13 +1146,20 @@ html, body {
 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes pulse { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
 
+#chat-compose-area {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(260px, 340px);
+  gap: 12px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--navy-mid);
+}
+
 #input-row {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--navy-mid);
+  align-self: end;
 }
 
 #user-input {
@@ -1186,6 +1193,102 @@ html, body {
 #send-btn:hover { background: var(--blue-dk); }
 #send-btn:disabled { opacity: 0.4; cursor: default; }
 
+#bubble-radar-panel {
+  min-height: 190px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(19, 39, 67, 0.82);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+}
+
+.radar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.radar-eyebrow {
+  margin: 0 0 2px;
+  color: var(--hint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#bubble-radar-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.radar-score {
+  flex-shrink: 0;
+  min-width: 54px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--blue-lt);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.radar-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.radar-tab {
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.radar-tab:hover,
+.radar-tab.active {
+  border-color: var(--blue);
+  background: var(--blue-lt);
+  color: var(--text);
+}
+
+.radar-chart-wrap {
+  position: relative;
+  height: 118px;
+}
+
+.radar-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.radar-summary {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
@@ -1193,4 +1296,10 @@ html, body {
   .wizard-card { padding: 36px 24px 28px; min-height: 420px; }
   #workspace { flex-direction: column; }
   #sidebar { width: 100%; max-height: 40vh; }
+  #chat-compose-area {
+    grid-template-columns: 1fr;
+  }
+  #bubble-radar-panel {
+    min-height: 180px;
+  }
 }

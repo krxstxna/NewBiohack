@@ -17,6 +17,8 @@ let currentStep = 0;
 let userName = "";
 let cachedProfile = null;
 let cachedMetrics = null;
+let chatRadarChart = null;
+let activeRadarSection = "training";
 
 const PROFILE_AVATARS = [
   "assets/avatars/avatar-peach.png",
@@ -58,6 +60,33 @@ const DASHBOARD_SECTIONS = {
     subtitle: "Archetype & cross-domain correlations",
     pageKey: "your_story",
     amaPrompt: "Explain my archetype and how my genes connect to my wearable and lab data.",
+  },
+};
+
+const RADAR_SECTIONS = {
+  training: {
+    title: "Training signals",
+    pageKey: "train",
+    color: "rgba(234, 88, 12, 0.9)",
+    fallbackMetrics: ["hrv", "resting_hr", "steps", "vo2_max"],
+  },
+  fuel: {
+    title: "Fuel signals",
+    pageKey: "fuel",
+    color: "rgba(22, 163, 74, 0.9)",
+    fallbackMetrics: ["active_calories", "steps", "sleep"],
+  },
+  recovery: {
+    title: "Recovery signals",
+    pageKey: "rest_recovery",
+    color: "rgba(37, 99, 235, 0.9)",
+    fallbackMetrics: ["sleep", "hrv", "resting_hr", "spo2"],
+  },
+  story: {
+    title: "Your Story signals",
+    pageKey: "your_story",
+    color: "rgba(126, 34, 206, 0.9)",
+    fallbackMetrics: ["hrv", "resting_hr", "sleep", "spo2"],
   },
 };
 
@@ -184,6 +213,12 @@ const labSection   = document.getElementById("lab-section");
 const labReportList = document.getElementById("lab-report-list");
 const metricsSection = document.getElementById("metrics-section");
 const metricsList  = document.getElementById("metrics-list");
+const bubbleRadarPanel = document.getElementById("bubble-radar-panel");
+const bubbleRadarCanvas = document.getElementById("bubble-radar-chart");
+const bubbleRadarTitle = document.getElementById("bubble-radar-title");
+const bubbleRadarScore = document.getElementById("bubble-radar-score");
+const bubbleRadarSummary = document.getElementById("bubble-radar-summary");
+const bubbleRadarEmpty = document.getElementById("bubble-radar-empty");
 
 const steps = [
   document.getElementById("step-welcome"),
@@ -442,7 +477,227 @@ function renderProfileDashboard(profile) {
 
   setHubBlobsEnabled(true);
   setHubStatus("Tap a section to explore your profile");
+  renderChatRadarPanel();
 }
+
+function clampScore(value) {
+  const n = Number(value);
+  if (Number.isNaN(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function parseMetricNumber(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const match = String(value).match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function readableRadarLabel(label) {
+  return String(label || "Metric")
+    .replace(/_/g, " ")
+    .replace(/\b(avg|average|score|pct|percent|percentage)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 18);
+}
+
+function normalizeProfileMetric(metric) {
+  const label = String(metric.label || metric.id || "").toLowerCase();
+  const unit = String(metric.unit || "").toLowerCase();
+  const raw = parseMetricNumber(metric.value);
+  if (raw == null) return null;
+
+  if (metric.min != null && metric.max != null && Number(metric.max) > Number(metric.min)) {
+    return clampScore(((raw - Number(metric.min)) / (Number(metric.max) - Number(metric.min))) * 100);
+  }
+  if (metric.score != null) return clampScore(metric.score);
+  if (metric.normalized != null) return clampScore(metric.normalized);
+  if (unit.includes("%") || label.includes("score") || label.includes("readiness") || label.includes("confidence")) {
+    return clampScore(raw);
+  }
+  if (label.includes("trend")) return clampScore(50 + raw);
+  if (label.includes("hrv")) return clampScore((raw / 80) * 100);
+  if (label.includes("resting") && (label.includes("hr") || label.includes("heart"))) {
+    return clampScore(100 - Math.max(0, raw - 45) * 2);
+  }
+  if (label.includes("spo2") || label.includes("oxygen")) return clampScore((raw - 90) * 10);
+  if (label.includes("sleep") && (unit.includes("hr") || unit.includes("hour"))) return clampScore((raw / 9) * 100);
+  if (label.includes("deep") || label.includes("rem")) return clampScore(raw);
+  if (label.includes("load")) return clampScore((raw / 700) * 100);
+  if (raw <= 1) return clampScore(raw * 100);
+  if (raw <= 100) return clampScore(raw);
+  return clampScore(Math.min(100, Math.log10(raw) * 25));
+}
+
+function metricPoint(label, value, unit = "") {
+  const score = normalizeProfileMetric({ label, value, unit });
+  return score == null ? null : { label: readableRadarLabel(label), score, sourceValue: value, unit };
+}
+
+function fallbackRadarPoints(sectionId) {
+  const metrics = cachedMetrics || {};
+  const points = [];
+  const add = (point) => { if (point) points.push(point); };
+  for (const key of RADAR_SECTIONS[sectionId]?.fallbackMetrics || []) {
+    const m = metrics[key] || {};
+    if (key === "hrv") add(metricPoint("HRV", m.latest_ms ?? m.avg_ms, "ms"));
+    if (key === "resting_hr") add(metricPoint("Resting HR", m.latest_bpm ?? m.avg_bpm, "bpm"));
+    if (key === "spo2") add(metricPoint("SpO2", m.latest_pct ?? m.avg_pct, "%"));
+    if (key === "sleep") add(metricPoint("Sleep", m.avg_hours, "hrs"));
+    if (key === "steps") add(metricPoint("Steps", m.avg_daily, "steps"));
+    if (key === "vo2_max") add(metricPoint("VO2 Max", m.latest, "mL/kg/min"));
+    if (key === "active_calories") add(metricPoint("Active calories", m.avg_daily_kcal, "kcal"));
+  }
+  return points;
+}
+
+function profileRadarPoints(sectionId) {
+  if (!cachedProfile) return fallbackRadarPoints(sectionId);
+  if (sectionId === "story" && cachedProfile.archetype?.scores) {
+    return Object.entries(cachedProfile.archetype.scores)
+      .slice(0, 8)
+      .map(([label, value]) => ({ label: readableRadarLabel(label), score: clampScore(value) }))
+      .filter((p) => p.score != null);
+  }
+
+  const cfg = RADAR_SECTIONS[sectionId];
+  const visualMetrics = cachedProfile?.[cfg?.pageKey]?.visual_metrics || [];
+  const points = visualMetrics
+    .map((metric) => {
+      const score = normalizeProfileMetric(metric);
+      if (score == null) return null;
+      return {
+        label: readableRadarLabel(metric.label || metric.id),
+        score,
+        sourceValue: metric.value,
+        unit: metric.unit || "",
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+
+  return points.length >= 3 ? points : fallbackRadarPoints(sectionId);
+}
+
+function firstSentences(text, max = 1) {
+  const plain = String(text || "").replace(/\s+/g, " ").trim();
+  if (!plain) return "";
+  const sentences = plain.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [plain];
+  return sentences.slice(0, max).join(" ").trim();
+}
+
+function chartNarrative(sectionId, points) {
+  const cfg = RADAR_SECTIONS[sectionId];
+  const page = cachedProfile?.[cfg?.pageKey] || {};
+  const profileText =
+    page.hero_summary ||
+    page.plain_explanation?.body ||
+    page.bubble_teaser ||
+    (page.bullet_summary || [])[0] ||
+    "";
+  if (!points.length) return firstSentences(profileText, 1);
+
+  const sorted = [...points].sort((a, b) => b.score - a.score);
+  const strongest = sorted[0];
+  const watch = sorted[sorted.length - 1];
+  const result = `${strongest.label} is the strongest chart signal (${strongest.score}/100), while ${watch.label} is the main watch area (${watch.score}/100).`;
+  const context = firstSentences(profileText, 1);
+  return context ? `${context} ${result}` : result;
+}
+
+function setRadarEmpty(message) {
+  if (bubbleRadarEmpty) {
+    bubbleRadarEmpty.textContent = message;
+    bubbleRadarEmpty.classList.remove("hidden");
+  }
+  if (bubbleRadarCanvas) bubbleRadarCanvas.classList.add("hidden");
+  if (chatRadarChart) {
+    chatRadarChart.destroy();
+    chatRadarChart = null;
+  }
+}
+
+function renderChatRadarPanel() {
+  if (!bubbleRadarPanel || !bubbleRadarCanvas) return;
+  const cfg = RADAR_SECTIONS[activeRadarSection] || RADAR_SECTIONS.training;
+  const points = profileRadarPoints(activeRadarSection);
+
+  document.querySelectorAll(".radar-tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.radarSection === activeRadarSection);
+  });
+  if (bubbleRadarTitle) bubbleRadarTitle.textContent = cfg.title;
+  if (bubbleRadarSummary) {
+    bubbleRadarSummary.textContent = points.length
+      ? chartNarrative(activeRadarSection, points)
+      : "Upload data and generate your profile to see the radar summary for this bubble.";
+  }
+  if (bubbleRadarScore) {
+    const avg = points.length
+      ? Math.round(points.reduce((sum, p) => sum + p.score, 0) / points.length)
+      : null;
+    bubbleRadarScore.textContent = avg == null ? "--" : `${avg}/100`;
+  }
+
+  if (!window.Chart) {
+    setRadarEmpty("Chart rendering is still loading. Try again in a moment.");
+    return;
+  }
+  if (points.length < 3) {
+    setRadarEmpty("Upload data and generate your profile to see this bubble's radar chart.");
+    return;
+  }
+
+  bubbleRadarEmpty?.classList.add("hidden");
+  bubbleRadarCanvas.classList.remove("hidden");
+  if (chatRadarChart) chatRadarChart.destroy();
+
+  chatRadarChart = new Chart(bubbleRadarCanvas, {
+    type: "radar",
+    data: {
+      labels: points.map((p) => p.label),
+      datasets: [{
+        label: cfg.title,
+        data: points.map((p) => p.score),
+        backgroundColor: cfg.color.replace("0.9", "0.18"),
+        borderColor: cfg.color,
+        borderWidth: 2,
+        pointBackgroundColor: "#E8EEF7",
+        pointBorderColor: cfg.color,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${ctx.parsed.r}/100`,
+          },
+        },
+      },
+      scales: {
+        r: {
+          min: 0,
+          max: 100,
+          ticks: { display: false, stepSize: 25 },
+          angleLines: { color: "rgba(255, 255, 255, 0.12)" },
+          grid: { color: "rgba(255, 255, 255, 0.12)" },
+          pointLabels: { color: "#E8EEF7", font: { size: 10 } },
+        },
+      },
+    },
+  });
+}
+
+document.querySelectorAll(".radar-tab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    activeRadarSection = btn.dataset.radarSection || "training";
+    renderChatRadarPanel();
+  });
+});
 
 async function showProfileDashboard(metrics) {
   document.getElementById("dashboard-retry")?.remove();
@@ -504,6 +759,7 @@ document.getElementById("open-profile-hub")?.addEventListener("click", openProfi
 
 function enterWorkspace() {
   document.getElementById("sidebar-name").textContent = userName || "there";
+  renderChatRadarPanel();
   if (!messagesEl.children.length) {
     const archetype = getPrimaryArchetype(cachedProfile).name;
     const intro = archetype
@@ -830,6 +1086,7 @@ function getDotClass(phenotype = "") {
 }
 
 function renderMetrics(metrics) {
+  cachedMetrics = metrics || cachedMetrics;
   metricsList.innerHTML = "";
   const LABELS = {
     hrv:             m => [`HRV`, `${m.latest_ms ?? m.avg_ms} ms`],
@@ -850,6 +1107,7 @@ function renderMetrics(metrics) {
     metricsList.appendChild(row);
   }
   metricsSection.style.display = "block";
+  renderChatRadarPanel();
 }
 
 /* ── Chat ───────────────────────────────────────────────────────── */
@@ -1023,6 +1281,7 @@ function restoreChatHistory(history) {
     if (data.profile && Object.keys(data.profile).length) {
       cachedProfile = data.profile;
       cachedMetrics = data.metrics;
+      renderChatRadarPanel();
     }
 
     const hasData = data.has_genes || data.has_metrics || data.has_lab_reports || (data.history_length > 0);
