@@ -220,8 +220,13 @@ document.querySelectorAll(".wearable-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".wearable-btn").forEach((b) => b.classList.remove("selected"));
     btn.classList.add("selected");
-    setWizardUploadState("apple", "idle", "Upload Apple Health export.xml");
-    openAppleUpload();
+    const wearable = btn.dataset.wearable;
+    if (wearable === "apple") {
+      setWizardUploadState("apple", "idle", "Upload Apple Health export.xml");
+      openAppleUpload();
+    } else {
+      syncJunctionWearables(btn.title || wearable);
+    }
   });
 });
 
@@ -235,6 +240,7 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
   setWizardUploadState("apple", "loading", `Syncing ${file.name}…`);
   const form = new FormData();
   form.append("file", file);
+  if (userName) form.append("client_user_id", userName);
 
   try {
     const res = await fetch(`${API}/upload/apple-health`, { method: "POST", body: form });
@@ -242,13 +248,43 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
     if (!res.ok) throw new Error(formatApiError(data, res.status));
 
     renderMetrics(data.metrics);
-    setWizardUploadState("apple", "ok", `${Object.keys(data.metrics).length} metrics synced`);
+    let status = `${Object.keys(data.metrics).length} metrics synced`;
+    if (data.junction?.sources?.length) {
+      status += ` · Junction (${data.junction.sources.join(", ")})`;
+    }
+    if (data.junction?.errors?.length) {
+      status += ` · ${data.junction.errors[0]}`;
+    }
+    setWizardUploadState("apple", "ok", status);
     setTimeout(finishOnboarding, 600);
   } catch (err) {
     setWizardUploadState("apple", "error", formatFetchError(err));
     e.target.value = "";
   }
 });
+
+async function syncJunctionWearables(wearableLabel) {
+  setWizardUploadState("apple", "loading", `Syncing ${wearableLabel} via Junction…`);
+  const form = new FormData();
+  if (userName) form.append("client_user_id", userName);
+
+  try {
+    const res = await fetch(`${API}/junction/sync`, { method: "POST", body: form });
+    const data = await parseApiResponse(res);
+    if (!res.ok) throw new Error(formatApiError(data, res.status));
+
+    renderMetrics(data.metrics);
+    const count = Object.keys(data.metrics || {}).filter((k) => !k.startsWith("junction_") && k !== "sources").length;
+    let status = count ? `${count} metrics synced` : "Connected — no metrics yet";
+    if (data.junction?.sources?.length) {
+      status += ` · Junction (${data.junction.sources.join(", ")})`;
+    }
+    setWizardUploadState("apple", "ok", status);
+    setTimeout(finishOnboarding, 600);
+  } catch (err) {
+    setWizardUploadState("apple", "error", formatFetchError(err));
+  }
+}
 
 function setWizardUploadState(which, state, text) {
   const status = document.getElementById(`${which}-status`);

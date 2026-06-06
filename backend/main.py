@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -15,6 +15,12 @@ from parsers.apple_health import parse_apple_health_xml
 from services.claude import chat_with_context
 from services.openai_client import has_api_key as has_openai_api_key
 from services.openai_client import list_available_model_ids, model_setup_hint
+from services.junction_client import (
+    create_link_token,
+    get_or_create_user,
+    has_junction_api_key,
+)
+from parsers.junction_wearables import fetch_junction_metrics, merge_wearable_metrics
 from services.session_store import load_session, save_session, clear_session as wipe_session
 
 app = FastAPI(title="GenoFit API")
@@ -53,6 +59,7 @@ app.add_middleware(NoCacheStaticMiddleware)
 
 session = load_session()
 session.setdefault("lab_reports", [])
+session.setdefault("junction_user_id", "")
 
 
 def persist_session() -> None:
@@ -61,7 +68,35 @@ def persist_session() -> None:
         session["metrics"],
         session["history"],
         session.get("lab_reports", []),
+        session.get("junction_user_id", ""),
     )
+
+
+def _junction_client_user_id(client_user_id: str = "") -> str:
+    uid = (client_user_id or "genofit-local").strip()
+    return uid or "genofit-local"
+
+
+def _merge_junction_metrics(metrics: dict, client_user_id: str = "") -> tuple[dict, dict]:
+    """Fetch Junction wearables and merge into metrics. Returns (metrics, junction_meta)."""
+    if not has_junction_api_key():
+        return metrics, {}
+
+    junction_meta: dict = {}
+    try:
+        uid = _junction_client_user_id(client_user_id)
+        junction_user_id = get_or_create_user(uid)
+        session["junction_user_id"] = junction_user_id
+        junction_payload = fetch_junction_metrics(junction_user_id)
+        metrics = merge_wearable_metrics(metrics, junction_payload)
+        junction_meta = {
+            "user_id": junction_user_id,
+            "sources": junction_payload.get("sources", []),
+            "errors": junction_payload.get("junction_errors", []),
+        }
+    except Exception as exc:
+        junction_meta = {"errors": [str(exc)]}
+    return metrics, junction_meta
 
 
 def merge_lab_reports(existing: list, new_reports: list) -> list:
@@ -151,7 +186,10 @@ async def upload_genesight_batch(files: list[UploadFile] = File(...)):
 
 
 @api.post("/upload/apple-health")
-async def upload_apple_health(file: UploadFile = File(...)):
+async def upload_apple_health(
+    file: UploadFile = File(...),
+    client_user_id: str = Form(""),
+):
     filename = (file.filename or "").lower()
     if not filename.endswith(".xml"):
         raise HTTPException(400, "Please upload the export.xml from Apple Health.")
@@ -161,9 +199,49 @@ async def upload_apple_health(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(500, f"Apple Health upload failed: {str(e)}")
 
+    metrics, junction_meta = _merge_junction_metrics(metrics, client_user_id)
     session["metrics"] = metrics
     persist_session()
-    return {"status": "ok", "metrics": metrics}
+    result = {"status": "ok", "metrics": metrics}
+    if junction_meta:
+        result["junction"] = junction_meta
+    return result
+
+
+@api.post("/junction/sync")
+async def junction_sync(client_user_id: str = Form("")):
+    """Refresh wearable metrics from Junction (Oura, Garmin, etc.)."""
+    if not has_junction_api_key():
+        raise HTTPException(
+            503,
+            "Junction API is not configured. Set JUNCTION_API_KEY.",
+        )
+
+    existing = session.get("metrics") or {}
+    try:
+        metrics, junction_meta = _merge_junction_metrics(existing, client_user_id)
+        session["metrics"] = metrics
+        persist_session()
+        return {"status": "ok", "metrics": metrics, "junction": junction_meta}
+    except Exception as e:
+        raise HTTPException(502, f"Junction sync failed: {str(e)}") from e
+
+
+@api.get("/junction/link-token")
+async def junction_link_token(client_user_id: str = ""):
+    """Link token for Junction Link widget (connect Oura / Garmin / etc.)."""
+    if not has_junction_api_key():
+        raise HTTPException(503, "Junction API is not configured.")
+
+    try:
+        uid = _junction_client_user_id(client_user_id)
+        junction_user_id = get_or_create_user(uid)
+        session["junction_user_id"] = junction_user_id
+        persist_session()
+        token = create_link_token(junction_user_id)
+        return {"link_token": token, "junction_user_id": junction_user_id}
+    except Exception as e:
+        raise HTTPException(502, str(e)) from e
 
 
 # ── Chat endpoint ─────────────────────────────────────────────────────────────
@@ -231,6 +309,8 @@ def health():
     return {
         "status": "ok",
         "has_api_key": has_openai_api_key(),
+        "has_junction_api_key": has_junction_api_key(),
+        "junction_env": os.getenv("JUNCTION_ENV", "sandbox"),
         "model_hint": model_setup_hint() if has_openai_api_key() else None,
     }
 
@@ -241,6 +321,8 @@ def get_session():
         "has_genes": bool(session["genes"]),
         "has_metrics": bool(session["metrics"]),
         "has_lab_reports": bool(session.get("lab_reports")),
+        "has_junction": bool(session.get("junction_user_id")),
+        "junction_user_id": session.get("junction_user_id", ""),
         "genes": session["genes"],
         "metrics": session["metrics"],
         "lab_reports": session.get("lab_reports", []),
@@ -255,6 +337,7 @@ def clear_session():
     session["metrics"] = {}
     session["history"] = []
     session["lab_reports"] = []
+    session["junction_user_id"] = ""
     wipe_session()
     return {"status": "cleared"}
 

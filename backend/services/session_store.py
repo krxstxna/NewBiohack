@@ -36,6 +36,12 @@ def init_db() -> None:
             )
         except sqlite3.OperationalError:
             pass
+        try:
+            conn.execute(
+                "ALTER TABLE session ADD COLUMN junction_user_id TEXT NOT NULL DEFAULT ''"
+            )
+        except sqlite3.OperationalError:
+            pass
         conn.execute(
             """
             INSERT OR IGNORE INTO session (id, genes, metrics, history)
@@ -51,33 +57,49 @@ def load_session() -> dict:
     init_db()
     with _connect() as conn:
         row = conn.execute(
-            "SELECT genes, metrics, history, lab_reports FROM session WHERE id = 1"
+            "SELECT genes, metrics, history, lab_reports, junction_user_id FROM session WHERE id = 1"
         ).fetchone()
         if not row:
-            return {"genes": {}, "metrics": {}, "history": [], "lab_reports": []}
+            return {"genes": {}, "metrics": {}, "history": [], "lab_reports": [], "junction_user_id": ""}
         return {
             "genes": json.loads(row["genes"]),
             "metrics": json.loads(row["metrics"]),
             "history": json.loads(row["history"]),
             "lab_reports": json.loads(row["lab_reports"]),
+            "junction_user_id": row["junction_user_id"] or "",
         }
 
 
-def save_session(genes: dict, metrics: dict, history: list, lab_reports: list | None = None) -> None:
+def save_session(
+    genes: dict,
+    metrics: dict,
+    history: list,
+    lab_reports: list | None = None,
+    junction_user_id: str | None = None,
+) -> None:
     init_db()
     with _connect() as conn:
         if lab_reports is None:
             row = conn.execute("SELECT lab_reports FROM session WHERE id = 1").fetchone()
             lab_reports = json.loads(row["lab_reports"]) if row else []
+        if junction_user_id is None:
+            row = conn.execute("SELECT junction_user_id FROM session WHERE id = 1").fetchone()
+            junction_user_id = (row["junction_user_id"] or "") if row else ""
         conn.execute(
             """
             UPDATE session
-            SET genes = ?, metrics = ?, history = ?, lab_reports = ?
+            SET genes = ?, metrics = ?, history = ?, lab_reports = ?, junction_user_id = ?
             WHERE id = 1
             """,
-            (json.dumps(genes), json.dumps(metrics), json.dumps(history), json.dumps(lab_reports)),
+            (
+                json.dumps(genes),
+                json.dumps(metrics),
+                json.dumps(history),
+                json.dumps(lab_reports),
+                junction_user_id or "",
+            ),
         )
 
 
 def clear_session() -> None:
-    save_session({}, {}, [], [])
+    save_session({}, {}, [], [], "")

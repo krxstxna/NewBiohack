@@ -76,6 +76,19 @@ If you previously set `GENOFIT_LITERATURE_MODEL=openai/gpt-oss-20b`, **unset it*
 
 Add exports to your `~/.zshrc` or `~/.bashrc` to make them permanent.
 
+### 3b. Junction wearable API (optional)
+
+When you upload Apple Health data (or sync Oura/Garmin), GenoFit can merge additional metrics from [Junction](https://junction.com/) (sleep, HRV, steps, SpO2):
+
+```bash
+export JUNCTION_API_KEY=your-junction-sandbox-key
+# optional — sandbox is the default:
+export JUNCTION_ENV=sandbox
+export JUNCTION_BASE_URL=https://api.sandbox.us.junction.com
+```
+
+Oura/Garmin buttons call `POST /api/junction/sync` (requires devices connected in Junction). Apple Health upload also pulls Junction data when the key is set.
+
 ### 4. Start the backend
 
 ```bash
@@ -121,7 +134,9 @@ Then restart the backend and reload the page.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/upload/genesight` | Upload GeneSight PDF |
-| POST | `/api/upload/apple-health` | Upload Apple Health XML |
+| POST | `/api/upload/apple-health` | Upload Apple Health XML (+ Junction merge if configured) |
+| POST | `/api/junction/sync` | Refresh wearables from Junction (Oura, Garmin, etc.) |
+| GET  | `/api/junction/link-token` | Link token for Junction Link widget |
 | POST | `/api/chat` | Send a chat message |
 | GET  | `/api/health` | Health check + API key status |
 | GET  | `/api/models` | List models available to your Nebius API key |
@@ -143,9 +158,10 @@ Then restart the backend and reload the page.
 ## Extending it
 
 **Add more wearable sources**
-- Oura: export CSV from the Oura app → add `parsers/oura.py`
-- Garmin: use the Garmin Connect API → add `parsers/garmin.py`
-- Whoop: export CSV from whoop.com → add `parsers/whoop.py`
+- **Junction API** (Oura, Garmin, etc.): set `JUNCTION_API_KEY` — see setup above
+- Oura CSV export → add `parsers/oura.py`
+- Garmin Connect API → add `parsers/garmin.py`
+- Whoop CSV export → add `parsers/whoop.py`
 
 **Persist sessions**
 - Sessions are stored in `backend/genofit.db` (SQLite) and survive backend restarts
