@@ -176,7 +176,7 @@ async def chat(req: ChatRequest):
         return {"reply": "Please upload your lab reports and wearable data first, then I can help interpret your results."}
     require_api_key()
     try:
-        reply, updated_history = await chat_with_context(
+        reply, updated_history, structured = await chat_with_context(
             message=req.message,
             genes=session["genes"],
             metrics=session["metrics"],
@@ -197,7 +197,10 @@ async def chat(req: ChatRequest):
 
     session["history"] = updated_history
     persist_session()
-    return {"reply": reply}
+    result = {"reply": reply}
+    if structured:
+        result["analysis"] = structured
+    return result
 
 
 # ── State endpoints ───────────────────────────────────────────────────────────

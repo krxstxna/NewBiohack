@@ -1,11 +1,14 @@
 """
-Claude chat service.
+Claude chat service — GenomeCoach analyst.
 
-Builds a rich system prompt from the user's lab reports, genes, and wearable context,
-then calls the Claude API with full conversation history for multi-turn chat.
+Builds a rich system prompt from lab reports, genetics, and wearables,
+returns structured JSON internally and a formatted athlete-facing reply.
 """
 
+import json
 import os
+import re
+
 import anthropic
 
 MAX_HISTORY_TURNS = 20
@@ -19,6 +22,76 @@ REPORT_TYPE_LABELS = {
     "other": "Lab report",
 }
 
+GENOMECOACH_PROMPT = """You are GenomeCoach, an expert translational sports-health analyst. You synthesize pharmacogenomic reports (e.g. Genesight), laboratory bloodwork, uploaded medical documents, wearable biometric trends, and self-reported anthropometrics into a unified athlete profile.
+
+## Your job
+1. Classify the user into exactly ONE primary archetype and up to TWO secondary archetypes from the list below.
+2. Cross-reference genetics, labs, and wearables — every major claim must cite at least two data domains when data exists.
+3. Ground recommendations in established pharmacogenomics and sports medicine literature (no external search tool in this session — use your training knowledge).
+4. Produce actionable recovery, training, and nutrition guidance tailored to the archetype and this specific person.
+5. Explain genetics and wearable links in plain language a non-scientist athlete can understand in under 60 seconds of reading.
+
+## Archetype definitions (use these names only)
+
+| ID | Name | Genetic signals | Wearable / lab signals |
+|----|------|-----------------|------------------------|
+| forge | Forge | COMT Val/Val (rs4680 GG) | Low HRV, elevated resting HR, slow recovery after hard blocks |
+| drift | Drift | SLC6A4 S/S (serotonin transporter) | Fragmented sleep, low REM %, mood/performance swings with poor sleep |
+| volt | Volt | HTR2A variant + COMT Val/Val + SLC6A4 S/S | Erratic HRV, high reactivity to stress/training, inconsistent readiness scores |
+| titan | Titan | MTHFR C677T homozygous (rs1801133 TT) | Elevated homocysteine, chronic low energy, poor adaptation despite moderate training load |
+| blitz | Blitz | CYP2D6 ultrarapid + CYP2C19 rapid metabolizer | Fast caffeine clearance, muted supplement response, strong VO2 gains with standard training |
+| pulse | Pulse | ADRB2 variant | Exaggerated HR response to effort, slow HR recovery, high endurance training responsiveness |
+| surge | Surge | IL-6 / TNF-alpha inflammatory variants | Elevated CRP, overnight SpO2 dips, plateaus despite consistent training, slow HRV rebound |
+| prime | Prime | COMT Met/Met + SLC6A4 L/L + normal CYP2D6 | Strong HRV baseline, predictable recovery, labs and wearables align with effort |
+
+Score each archetype 0–100. Primary = highest score. Secondary = 2nd and 3rd if within 15 points of primary. State confidence (high/medium/low) based on data completeness.
+
+## Cross-domain connection rules (mandatory)
+
+For each connection you surface, reason through:
+GENE/LAB signal → expected physiology → WEARABLE metric that should reflect it → does this user's data confirm or contradict?
+
+You must actively look for:
+- MTHFR + homocysteine ↑ → impaired methylation → low energy + poor recovery → resting HR trend + HRV rebound days
+- COMT Val/Val → prolonged catecholamine clearance → elevated resting HR + difficulty downshifting → sleep HR + morning HRV
+- CYP2D6 ultrarapid → rapid drug/supplement metabolism → caffeine timing vs sleep latency from wearable
+- SLC6A4 S/S + low REM → serotonin regulation → performance variance → sleep stages vs next-day HRV/readiness
+- IL-6 variants + CRP ↑ → systemic inflammation → SpO2 dips, elevated overnight HR → overreaching signals
+- ADRB2 → beta-2 receptor sensitivity → HR overshoot on intervals → interval HR peaks vs recovery HR at 60s/120s
+
+If wearable data contradicts genetic expectation, say so explicitly and hypothesize why (acclimatization, medication, data quality, recent illness).
+
+## Recommendation rules
+
+- Recovery: 3–5 tips. Sleep, HRV-guided rest, stress downregulation, active recovery. Reference archetype.
+- Training: 3–5 tips. Periodization, intensity caps, deload triggers tied to wearable thresholds. Never prescribe dangerous volumes.
+- Nutrition: 3–5 tips. Micronutrients tied to genetics (e.g. methylfolate for MTHFR, omega-3 for Surge), timing, hydration.
+- Each tip: one sentence "what", one sentence "why" linked to their data, optional "watch for" wearable sign.
+
+## Tone and safety
+
+- Confident but humble. Use "your data suggests" not "you have."
+- Never diagnose disease. Frame labs as "markers to discuss with your clinician."
+- Flag critical labs (homocysteine >15, CRP >10, ferritin extremes) for physician follow-up.
+- Do not recommend stopping or changing prescribed medications.
+- Include disclaimer: educational only, not medical advice.
+
+## Output
+
+Respond ONLY with valid JSON matching this schema. No markdown fences, no preamble.
+
+{
+  "archetype_primary": {"id": "forge", "name": "Forge", "score": 0, "confidence": "high|medium|low"},
+  "archetype_secondary": [{"id": "drift", "name": "Drift", "score": 0}],
+  "archetype_scores": {"forge": 0, "drift": 0, "volt": 0, "titan": 0, "blitz": 0, "pulse": 0, "surge": 0, "prime": 0},
+  "connections": [{"title": "string", "analysis": "string"}],
+  "recovery": [{"what": "string", "why": "string", "watch_for": "string"}],
+  "training": [{"what": "string", "why": "string", "watch_for": "string"}],
+  "nutrition": [{"what": "string", "why": "string", "watch_for": "string"}],
+  "reply": "Plain-language summary for the athlete (100-150 words max unless user asks for detail)",
+  "disclaimer": "Educational only, not medical advice."
+}"""
+
 
 def build_system_prompt(genes: dict, metrics: dict, lab_reports: list) -> str:
     report_lines = []
@@ -28,10 +101,10 @@ def build_system_prompt(genes: dict, metrics: dict, lab_reports: list) -> str:
         summary = report.get("summary", "")
         report_lines.append(f"  [{rtype}] {fname}: {summary}")
         markers = report.get("markers") or {}
-        for name, value in list(markers.items())[:8]:
+        for name, value in list(markers.items())[:12]:
             report_lines.append(f"    - {name}: {value}")
-        if len(markers) > 8:
-            report_lines.append(f"    - ... and {len(markers) - 8} more markers")
+        if len(markers) > 12:
+            report_lines.append(f"    - ... and {len(markers) - 12} more markers")
 
     report_block = "\n".join(report_lines) if report_lines else "  No lab reports loaded yet."
 
@@ -46,15 +119,23 @@ def build_system_prompt(genes: dict, metrics: dict, lab_reports: list) -> str:
     metric_lines = []
     hrv = metrics.get("hrv", {})
     if hrv:
-        metric_lines.append(f"  - HRV: {hrv.get('latest_ms', 'N/A')} ms (30-day avg: {hrv.get('avg_ms', 'N/A')} ms)")
+        metric_lines.append(
+            f"  - HRV: {hrv.get('latest_ms', 'N/A')} ms "
+            f"(30-day avg: {hrv.get('avg_ms', 'N/A')} ms, {hrv.get('n_readings', 0)} readings)"
+        )
 
     rhr = metrics.get("resting_hr", {})
     if rhr:
-        metric_lines.append(f"  - Resting HR: {rhr.get('latest_bpm', 'N/A')} bpm (avg: {rhr.get('avg_bpm', 'N/A')} bpm)")
+        metric_lines.append(
+            f"  - Resting HR: {rhr.get('latest_bpm', 'N/A')} bpm "
+            f"(avg: {rhr.get('avg_bpm', 'N/A')} bpm)"
+        )
 
     spo2 = metrics.get("spo2", {})
     if spo2:
-        metric_lines.append(f"  - SpO2: {spo2.get('latest_pct', 'N/A')}% (avg: {spo2.get('avg_pct', 'N/A')}%)")
+        metric_lines.append(
+            f"  - SpO2: {spo2.get('latest_pct', 'N/A')}% (avg: {spo2.get('avg_pct', 'N/A')}%)"
+        )
 
     sleep = metrics.get("sleep", {})
     if sleep:
@@ -62,7 +143,8 @@ def build_system_prompt(genes: dict, metrics: dict, lab_reports: list) -> str:
         rem = sleep.get("avg_rem_min")
         metric_lines.append(
             f"  - Sleep: {sleep.get('avg_hours', 'N/A')} hrs avg/night "
-            f"(deep: {round(deep, 0) if deep else 'N/A'} min, REM: {round(rem, 0) if rem else 'N/A'} min)"
+            f"(deep: {round(deep, 0) if deep else 'N/A'} min, "
+            f"REM: {round(rem, 0) if rem else 'N/A'} min)"
         )
 
     steps = metrics.get("steps", {})
@@ -75,27 +157,94 @@ def build_system_prompt(genes: dict, metrics: dict, lab_reports: list) -> str:
 
     metric_block = "\n".join(metric_lines) if metric_lines else "  No wearable data loaded yet."
 
-    return f"""You are GenoFit, an expert AI that interprets lab results and wearable health data together. You connect bloodwork, genetic reports, microbiome data, and daily biometrics to explain WHY the user's health signals look the way they do.
+    return f"""{GENOMECOACH_PROMPT}
 
-== User's Lab Reports ==
+== This user's uploaded data (ground every answer in these values) ==
+
+Lab reports:
 {report_block}
 
-== Genetic Variants (from reports) ==
+Genetic variants:
 {gene_block}
 
-== Wearable Metrics (last 30 days) ==
+Wearable metrics (last 30 days):
 {metric_block}
 
-== Your role ==
-- Ground answers in the user's SPECIFIC lab values, genes, and wearable data — not generic advice.
-- Connect across data sources (e.g. low ferritin on bloodwork + elevated resting HR on wearable → possible oxygen-transport limitation).
-- Be precise about values, mechanisms, and how different report types relate.
-- Keep responses concise (100–150 words max) unless the user asks for detail.
-- End most responses with ONE actionable insight tailored to their data.
-- Never give medical diagnoses or tell them to stop medications. Frame everything as informational context.
-- If data is missing for a question, acknowledge it and work with what's available.
-- Use plain, confident language — no jargon dumps.
-"""
+When a data domain is missing, note lower confidence and avoid inventing values."""
+
+
+def _strip_json_fences(raw: str) -> str:
+    raw = raw.strip()
+    raw = re.sub(r"^```[a-z]*\n?", "", raw)
+    raw = re.sub(r"\n?```$", "", raw)
+    return raw.strip()
+
+
+def _format_tip(tip: dict) -> str:
+    parts = [tip.get("what", "")]
+    if tip.get("why"):
+        parts.append(tip["why"])
+    if tip.get("watch_for"):
+        parts.append(f"Watch for: {tip['watch_for']}")
+    return " — ".join(p for p in parts if p)
+
+
+def format_coach_response(data: dict) -> str:
+    """Turn structured GenomeCoach JSON into readable chat HTML."""
+    sections = []
+
+    primary = data.get("archetype_primary") or {}
+    if primary.get("name"):
+        conf = primary.get("confidence", "")
+        score = primary.get("score", "")
+        line = f"<strong>Primary archetype: {primary['name']}</strong>"
+        if score != "":
+            line += f" ({score}/100"
+            if conf:
+                line += f", {conf} confidence"
+            line += ")"
+        sections.append(line)
+
+    secondary = data.get("archetype_secondary") or []
+    if secondary:
+        names = ", ".join(s.get("name", s.get("id", "")) for s in secondary if s)
+        if names:
+            sections.append(f"<strong>Secondary:</strong> {names}")
+
+    reply = data.get("reply", "")
+    if reply:
+        sections.append(reply)
+
+    connections = data.get("connections") or []
+    if connections:
+        items = []
+        for c in connections[:4]:
+            title = c.get("title", "Connection")
+            analysis = c.get("analysis", "")
+            items.append(f"• <strong>{title}</strong>: {analysis}")
+        sections.append("<strong>Key connections</strong><br>" + "<br>".join(items))
+
+    for label, key in [("Recovery", "recovery"), ("Training", "training"), ("Nutrition", "nutrition")]:
+        tips = data.get(key) or []
+        if tips:
+            items = [f"• {_format_tip(t)}" for t in tips[:5]]
+            sections.append(f"<strong>{label}</strong><br>" + "<br>".join(items))
+
+    disclaimer = data.get("disclaimer") or "Educational only, not medical advice."
+    sections.append(f"<em>{disclaimer}</em>")
+
+    return "<br><br>".join(sections)
+
+
+def parse_coach_response(raw: str) -> tuple[str, dict | None]:
+    """Parse model JSON output; return (display_text, parsed dict or None)."""
+    try:
+        data = json.loads(_strip_json_fences(raw))
+        if isinstance(data, dict):
+            return format_coach_response(data), data
+    except json.JSONDecodeError:
+        pass
+    return raw, None
 
 
 async def chat_with_context(
@@ -104,7 +253,7 @@ async def chat_with_context(
     metrics: dict,
     lab_reports: list,
     history: list,
-) -> tuple[str, list]:
+) -> tuple[str, list, dict | None]:
     client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     trimmed_history = history[-(MAX_HISTORY_TURNS * 2):]
@@ -112,11 +261,14 @@ async def chat_with_context(
 
     response = await client.messages.create(
         model=CHAT_MODEL,
-        max_tokens=1000,
+        max_tokens=3000,
         system=build_system_prompt(genes, metrics, lab_reports),
         messages=messages,
     )
 
-    reply = response.content[0].text
-    updated_history = messages + [{"role": "assistant", "content": reply}]
-    return reply, updated_history
+    raw = response.content[0].text
+    display_reply, structured = parse_coach_response(raw)
+
+    # Store formatted reply in history so follow-up turns stay readable
+    updated_history = messages + [{"role": "assistant", "content": display_reply}]
+    return display_reply, updated_history, structured
