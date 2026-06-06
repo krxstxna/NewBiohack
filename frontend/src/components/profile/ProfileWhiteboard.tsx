@@ -3,6 +3,7 @@ import { EcosystemPod } from "./EcosystemPod";
 import type { Metrics, PodId, Profile } from "../../types/profile";
 import { buildPodPreview, getArchetypeHeader } from "../../lib/profileHelpers";
 import { Button } from "../ui/Button";
+import { GenoFitLogo } from "../ui/GenoFitLogo";
 
 interface ProfileWhiteboardProps {
   userName: string;
@@ -33,15 +34,22 @@ export function ProfileWhiteboard({
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC]">
       <header className="border-b border-slate-100 bg-white/70 px-6 py-5 backdrop-blur-md">
-        <h1 className="text-center text-2xl font-bold text-slate-800 sm:text-3xl">
-          Hi, <span className="text-teal-600">{userName || "there"}</span>
-        </h1>
-        {name ? (
-          <p className="mt-1 text-center text-sm italic text-slate-500">
-            {name}
-            {tagline ? ` — ${tagline}` : ""}
-          </p>
-        ) : null}
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4">
+          <div className="rounded-2xl bg-slate-900 px-4 py-2.5 shadow-sm">
+            <GenoFitLogo className="h-10 w-auto sm:h-11" />
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-slate-800 sm:text-3xl">
+              Hi, <span className="text-teal-600">{userName || "there"}</span>
+            </h1>
+            {name ? (
+              <p className="mt-1 text-sm italic text-slate-500">
+                {name}
+                {tagline ? ` — ${tagline}` : ""}
+              </p>
+            ) : null}
+          </div>
+        </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 py-6 sm:px-8">

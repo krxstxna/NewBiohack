@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=20" />
+  <link rel="icon" type="image/svg+xml" href="assets/genofit-logo-light.svg" />
+  <link rel="stylesheet" href="style.css?v=21" />
 </head>
 <body>
   <div id="app">
@@ -13,6 +14,9 @@
     <!-- ── Onboarding wizard ─────────────────────────────────────── -->
     <div id="onboarding">
       <div class="wizard-card">
+        <div class="site-logo-wrap site-logo-wrap--center" aria-label="GenoFit">
+          <img class="site-logo" src="assets/genofit-logo.svg" alt="GenoFit — Your Genes. Your Data. Your Edge." />
+        </div>
 
         <!-- Step 1: Name -->
         <section class="wizard-step active" id="step-welcome">
@@ -92,6 +96,9 @@
     <div id="profile-dashboard" class="hidden">
       <div class="dashboard-shell">
         <header class="dashboard-header">
+          <div class="site-logo-wrap" aria-label="GenoFit">
+            <img class="site-logo" src="assets/genofit-logo.svg" alt="GenoFit — Your Genes. Your Data. Your Edge." />
+          </div>
           <button type="button" class="detail-back hidden" id="detail-back" aria-label="Back to profile hub">
             ← Back
           </button>
@@ -161,9 +168,10 @@
     <div id="workspace" class="hidden">
       <aside id="sidebar">
         <div class="logo-row" id="home-logo" role="button" tabindex="0" title="Back to home">
-          <div class="logo">G</div>
+          <div class="site-logo-wrap site-logo-wrap--compact">
+            <img class="site-logo site-logo--compact" src="assets/genofit-logo.svg" alt="GenoFit — Your Genes. Your Data. Your Edge." />
+          </div>
           <div>
-            <div class="app-name">GenoFit</div>
             <div class="app-sub">Hi, <span id="sidebar-name">there</span></div>
           </div>
         </div>

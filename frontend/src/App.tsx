@@ -6,6 +6,7 @@ import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { ChatWorkspace } from "./components/chat/ChatWorkspace";
 import { getApiBase, formatApiError, parseApiResponse } from "./api/client";
 import type { Metrics, PodId, Profile } from "./types/profile";
+import { GenoFitLogo } from "./components/ui/GenoFitLogo";
 import { pickAvatar } from "./lib/profileHelpers";
 
 type View = "onboarding" | "profile" | "profile-detail" | "chat";
@@ -103,8 +104,11 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-slate-500">
-        Loading GenoFit…
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#F8FAFC]">
+        <div className="rounded-2xl bg-slate-900 px-4 py-2.5 shadow-sm">
+          <GenoFitLogo className="h-10 w-auto" />
+        </div>
+        <p className="text-slate-500">Loading GenoFit…</p>
       </div>
     );
   }

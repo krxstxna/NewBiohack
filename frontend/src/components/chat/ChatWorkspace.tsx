@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui/Button";
+import { GenoFitLogo } from "../ui/GenoFitLogo";
 import { getApiBase, formatApiError, parseApiResponse } from "../../api/client";
 
 interface ChatWorkspaceProps {
@@ -47,9 +48,11 @@ export function ChatWorkspace({ userName, history, onHistoryChange, onOpenProfil
   return (
     <div className="flex h-full min-h-screen flex-col bg-[#F8FAFC]">
       <header className="flex items-center justify-between border-b border-slate-100 bg-white/70 px-4 py-3 backdrop-blur-md sm:px-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">GenoFit</p>
-          <p className="text-sm text-slate-500">Hi, {userName || "there"}</p>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 rounded-xl bg-slate-900 px-3 py-1.5 shadow-sm">
+            <GenoFitLogo className="h-8 w-auto sm:h-9" />
+          </div>
+          <p className="truncate text-sm text-slate-500">Hi, {userName || "there"}</p>
         </div>
         <Button variant="secondary" className="px-4 py-2 text-xs" onClick={onOpenProfile}>
           My profile

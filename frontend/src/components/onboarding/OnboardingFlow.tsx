@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
+import { GenoFitLogo } from "../ui/GenoFitLogo";
 
 interface OnboardingFlowProps {
   initialName?: string;
@@ -15,6 +16,11 @@ export function OnboardingFlow({ initialName = "", onComplete, onSkipToChat }: O
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-6">
       <div className="w-full max-w-md rounded-[32px] border border-slate-100 bg-white/70 p-8 shadow-sm backdrop-blur-md">
+        <div className="mb-6 flex justify-center">
+          <div className="rounded-2xl bg-slate-900 px-4 py-2.5 shadow-sm">
+            <GenoFitLogo className="h-10 w-auto" />
+          </div>
+        </div>
         {step === 0 && (
           <>
             <h1 className="text-2xl font-bold text-slate-800">Hi there,</h1>

@@ -950,6 +950,45 @@ html, body {
   border-bottom: 1px solid var(--border);
 }
 
+.site-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.site-logo-wrap--center {
+  margin-bottom: 20px;
+}
+
+.site-logo-wrap--compact {
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+
+.site-logo {
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: 220px;
+}
+
+.site-logo--compact {
+  height: 32px;
+  max-width: 180px;
+}
+
+.dashboard-header .site-logo-wrap {
+  margin: 0 auto 12px;
+}
+
+.dashboard-header .site-logo {
+  height: 44px;
+}
+
 #home-logo {
   cursor: pointer;
   transition: background 0.15s;
