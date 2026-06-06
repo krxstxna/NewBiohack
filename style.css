@@ -321,6 +321,18 @@ html, body {
   border-bottom: 1px solid var(--border);
 }
 
+#home-logo {
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+#home-logo:hover { background: var(--navy-hover); }
+#home-logo:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
 .logo {
   width: 32px; height: 32px;
   border-radius: 8px;

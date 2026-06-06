@@ -52,6 +52,21 @@ function showStep(index) {
   dots.forEach((el, i) => el.classList.toggle("active", i === index));
 }
 
+function goToWelcome() {
+  saveOnboarding({ complete: false });
+  workspaceEl.classList.add("hidden");
+  onboardingEl.classList.remove("hidden");
+  showStep(0);
+}
+
+document.getElementById("home-logo")?.addEventListener("click", goToWelcome);
+document.getElementById("home-logo")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    goToWelcome();
+  }
+});
+
 function finishOnboarding() {
   saveOnboarding({ complete: true, name: userName });
   onboardingEl.classList.add("hidden");
