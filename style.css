@@ -173,14 +173,20 @@ html, body {
 
 .lab-file-list li {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   font-size: 0.78rem;
   color: var(--muted);
   padding: 6px 10px;
   border-radius: 8px;
   background: var(--navy-mid);
   margin-bottom: 6px;
+}
+
+.lab-file-sub {
+  font-size: 0.7rem;
+  color: var(--blue);
 }
 
 .lab-file-list li::before {
@@ -419,6 +425,25 @@ html, body {
 .dot-red    { background: #F87171; }
 
 #metrics-list { display: flex; flex-direction: column; gap: 5px; }
+
+#lab-report-list { display: flex; flex-direction: column; gap: 8px; }
+.lab-report-row {
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--navy-mid);
+  border: 1px solid var(--border);
+}
+.lab-report-name { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.lab-report-type {
+  font-size: 10px;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.lab-report-summary { color: var(--muted); line-height: 1.4; }
+
 .metric-row {
   display: flex;
   justify-content: space-between;

@@ -23,6 +23,8 @@ const inputEl      = document.getElementById("user-input");
 const sendBtn      = document.getElementById("send-btn");
 const geneSection  = document.getElementById("gene-section");
 const geneList     = document.getElementById("gene-list");
+const labSection   = document.getElementById("lab-section");
+const labReportList = document.getElementById("lab-report-list");
 const metricsSection = document.getElementById("metrics-section");
 const metricsList  = document.getElementById("metrics-list");
 
@@ -82,8 +84,8 @@ function enterWorkspace() {
   document.getElementById("sidebar-name").textContent = userName || "there";
   if (!messagesEl.children.length) {
     addAiMessage(
-      `Hi ${escapeHtml(userName || "there")} — ask me anything about your genetics and wearable data. ` +
-      `I'll explain your readings in the context of your gene profile.`
+      `Hi ${escapeHtml(userName || "there")} — ask me anything about your lab results, genetics, and wearable data. ` +
+      `I'll connect the dots across your reports and biometrics.`
     );
   }
 }
@@ -119,11 +121,50 @@ function renderLabFileList() {
   // list is built incrementally in upload handler
 }
 
-function addLabFileRow(name, ok = true) {
+function addLabFileRow(name, ok = true, subtitle = "") {
   const li = document.createElement("li");
-  li.textContent = truncate(name, 36);
+  li.innerHTML = subtitle
+    ? `<span>${truncate(name, 32)}</span><span class="lab-file-sub">${subtitle}</span>`
+    : truncate(name, 36);
   if (!ok) li.classList.add("failed");
   labFileList.appendChild(li);
+}
+
+function labUploadSummary(data) {
+  const reports = data.lab_reports || [];
+  const geneCount = Object.keys(data.genes || {}).length;
+  const markerCount = reports.reduce((n, r) => n + Object.keys(r.markers || {}).length, 0);
+  const parts = [`${reports.length} report(s)`];
+  if (markerCount) parts.push(`${markerCount} marker(s)`);
+  if (geneCount) parts.push(`${geneCount} gene(s)`);
+  return parts.join(" · ");
+}
+
+const REPORT_LABELS = {
+  bloodwork: "Bloodwork",
+  genetic: "Genetic",
+  ancestry: "Ancestry",
+  microbiome: "Microbiome",
+  other: "Lab report",
+};
+
+function renderLabReports(reports) {
+  labReportList.innerHTML = "";
+  if (!reports.length) {
+    labSection.style.display = "none";
+    return;
+  }
+  for (const report of reports) {
+    const row = document.createElement("div");
+    row.className = "lab-report-row";
+    row.innerHTML = `
+      <div class="lab-report-type">${REPORT_LABELS[report.report_type] || "Lab report"}</div>
+      <div class="lab-report-name">${escapeHtml(truncate(report.filename || "Report", 28))}</div>
+      <div class="lab-report-summary">${escapeHtml(truncate(report.summary || "", 80))}</div>
+    `;
+    labReportList.appendChild(row);
+  }
+  labSection.style.display = "block";
 }
 
 document.getElementById("genesight-input").addEventListener("change", async (e) => {
@@ -143,26 +184,26 @@ document.getElementById("genesight-input").addEventListener("change", async (e) 
   for (const file of newFiles) form.append("files", file);
 
   try {
-    const res = await fetch(`${API}/upload/genesight/batch`, { method: "POST", body: form });
+    const res = await fetch(`${API}/upload/lab-reports/batch`, { method: "POST", body: form });
     const data = await parseApiResponse(res);
     if (!res.ok) throw new Error(formatApiError(data, res.status));
 
     for (const name of data.files_processed || []) {
       uploadedLabFiles.add(name);
-      addLabFileRow(name, true);
+      const report = (data.lab_reports || []).find((r) => r.filename === name);
+      const subtitle = report
+        ? REPORT_LABELS[report.report_type] || "Lab report"
+        : "";
+      addLabFileRow(name, true, subtitle);
     }
     for (const fail of data.files_failed || []) {
-      addLabFileRow(`${fail.filename}: ${fail.error}`, false);
+      addLabFileRow(fail.filename, false, "Could not read");
     }
 
     document.getElementById("genesight-label").classList.add("loaded");
-    const geneCount = Object.keys(data.genes || {}).length;
-    setWizardUploadState(
-      "genesight",
-      "ok",
-      `${uploadedLabFiles.size} file(s) · ${geneCount} genes total`
-    );
-    renderGenes(data.genes);
+    setWizardUploadState("genesight", "ok", labUploadSummary(data));
+    renderLabReports(data.lab_reports || []);
+    if (data.genes && Object.keys(data.genes).length) renderGenes(data.genes);
   } catch (err) {
     setWizardUploadState("genesight", "error", formatFetchError(err));
   }
@@ -417,14 +458,15 @@ function restoreChatHistory(history) {
   try {
     const res = await fetch(`${API}/session`);
     const data = await res.json();
-    if (data.has_genes) {
-      renderGenes(data.genes);
-      setWizardUploadState("genesight", "ok", `${Object.keys(data.genes).length} genes loaded`);
+    if (data.has_lab_reports) renderLabReports(data.lab_reports || []);
+    if (data.has_genes) renderGenes(data.genes);
+    if (data.has_lab_reports || data.has_genes) {
+      setWizardUploadState("genesight", "ok", labUploadSummary(data));
       document.getElementById("genesight-label")?.classList.add("loaded");
     }
     if (data.has_metrics) renderMetrics(data.metrics);
 
-    const hasData = data.has_genes || data.has_metrics || (data.history_length > 0);
+    const hasData = data.has_genes || data.has_metrics || data.has_lab_reports || (data.history_length > 0);
     showResetLink(hasData || saved.complete);
 
     // Only skip onboarding if user explicitly finished it (not just because data exists)
