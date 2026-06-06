@@ -53,7 +53,7 @@ class NoCacheStaticMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         path = request.url.path
         is_frontend_route = path == "/" or (not path.startswith("/api") and not Path(path).suffix)
-        if is_frontend_route or path.endswith((".html", ".js", ".css")):
+        if is_frontend_route or path.endswith((".html", ".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico")):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
