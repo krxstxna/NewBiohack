@@ -20,6 +20,11 @@ let cachedMetrics = null;
 
 const ARCHETYPE_IDS = ["forge", "drift", "volt", "titan", "blitz", "pulse", "surge", "prime"];
 
+const PROFILE_AVATARS = [
+  "assets/avatars/avatar-peach.png",
+  "assets/avatars/avatar-green.png",
+];
+
 const DASHBOARD_SECTIONS = {
   training: {
     title: "Training",
@@ -170,7 +175,7 @@ function showStep(index) {
 }
 
 function goToWelcome() {
-  saveOnboarding({ complete: false, dashboardViewed: false });
+  saveOnboarding({ complete: false, dashboardViewed: false, profileAvatar: null });
   uploadedLabFiles.clear();
   labFileList.innerHTML = "";
   document.getElementById("genesight-label")?.classList.remove("loaded");
@@ -211,6 +216,7 @@ async function openProfileHub() {
   document.getElementById("detail-back")?.classList.add("hidden");
   document.getElementById("dashboard-retry")?.remove();
   document.getElementById("dashboard-name").textContent = userName || "there";
+  applyProfileAvatar();
 
   if (cachedProfile && Object.keys(cachedProfile).length) {
     renderProfileDashboard(cachedProfile);
@@ -371,16 +377,28 @@ function closeDashboardDetail() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function pickProfileAvatar(forceNew = false) {
+  const saved = loadOnboarding();
+  if (!forceNew && saved.profileAvatar && PROFILE_AVATARS.includes(saved.profileAvatar)) {
+    return saved.profileAvatar;
+  }
+  const chosen = PROFILE_AVATARS[Math.floor(Math.random() * PROFILE_AVATARS.length)];
+  saveOnboarding({ profileAvatar: chosen });
+  return chosen;
+}
+
+function applyProfileAvatar(forceNew = false) {
+  const img = document.getElementById("dashboard-avatar-img");
+  if (!img) return;
+  img.src = pickProfileAvatar(forceNew);
+  img.alt = "Your profile avatar";
+}
+
 function renderProfileDashboard(profile) {
   cachedProfile = profile;
+  applyProfileAvatar();
 
   const primary = getPrimaryArchetype(profile);
-  const archetypeId = (primary.id || "").toLowerCase();
-  const avatar = document.getElementById("dashboard-avatar");
-  avatar.className = "hub-avatar";
-  if (ARCHETYPE_IDS.includes(archetypeId)) {
-    avatar.classList.add(`archetype-${archetypeId}`);
-  }
 
   const badge = document.getElementById("hub-archetype-badge");
   const vqLabel = profile.archetype?.vq_cluster_label;
@@ -409,6 +427,7 @@ async function showProfileDashboard(metrics) {
   document.getElementById("detail-back").classList.add("hidden");
 
   document.getElementById("dashboard-name").textContent = userName || "there";
+  applyProfileAvatar();
   setHubBlobsEnabled(false);
   setHubStatus("Analyzing your profile…");
   document.getElementById("hub-archetype-badge").classList.add("hidden");

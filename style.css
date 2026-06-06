@@ -496,17 +496,20 @@ html, body {
 }
 
 .hub-avatar {
-  width: 100px;
-  height: 130px;
+  width: 120px;
+  height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #111;
 }
 
-.hub-avatar .avatar-figure {
-  width: 72px;
-  height: 108px;
+.hub-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  user-select: none;
 }
 
 .hub-archetype-badge {
@@ -534,16 +537,6 @@ html, body {
   color: #666 !important;
   font-size: 0.85rem !important;
 }
-
-/* Archetype tint on avatar */
-.hub-avatar.archetype-forge { color: #ea580c; }
-.hub-avatar.archetype-drift { color: #7c3aed; }
-.hub-avatar.archetype-volt { color: #ca8a04; }
-.hub-avatar.archetype-titan { color: #475569; }
-.hub-avatar.archetype-blitz { color: #dc2626; }
-.hub-avatar.archetype-pulse { color: #db2777; }
-.hub-avatar.archetype-surge { color: #0d9488; }
-.hub-avatar.archetype-prime { color: #2563eb; }
 
 /* Detail card — in-page organic frame */
 .detail-card {

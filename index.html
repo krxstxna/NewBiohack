@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
   <div id="app">
@@ -105,15 +105,13 @@
             <button type="button" class="hub-blob blob-tr" data-section="fuel" disabled>Fuel</button>
 
             <div class="hub-avatar-wrap">
-              <div class="hub-avatar" id="dashboard-avatar" aria-hidden="true">
-                <svg class="avatar-figure" viewBox="0 0 80 120" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-                  <circle cx="40" cy="18" r="12"/>
-                  <line x1="40" y1="30" x2="40" y2="68"/>
-                  <line x1="40" y1="42" x2="18" y2="58"/>
-                  <line x1="40" y1="42" x2="62" y2="58"/>
-                  <line x1="40" y1="68" x2="22" y2="105"/>
-                  <line x1="40" y1="68" x2="58" y2="105"/>
-                </svg>
+              <div class="hub-avatar" id="dashboard-avatar">
+                <img
+                  class="hub-avatar-img"
+                  id="dashboard-avatar-img"
+                  src="assets/avatars/avatar-peach.png"
+                  alt="Your profile avatar"
+                />
               </div>
               <p class="hub-archetype-badge hidden" id="hub-archetype-badge"></p>
             </div>
@@ -204,6 +202,6 @@
 
   </div>
 
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>
