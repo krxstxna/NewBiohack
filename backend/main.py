@@ -339,7 +339,6 @@ async def junction_link_token(
         raise HTTPException(400, f"Unsupported provider: {provider}")
 
     try:
-        uid = _junction_client_user_id(client_user_id)
         junction_user_id = _resolve_junction_user(client_user_id)
         session["junction_user_id"] = junction_user_id
         persist_session()
