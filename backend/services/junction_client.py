@@ -104,6 +104,31 @@ def get_or_create_user(client_user_id: str) -> str:
     return user.user_id
 
 
+def configured_junction_user_id() -> str | None:
+    """Existing Junction user UUID (e.g. demo user from the dashboard)."""
+    user_id = os.environ.get("JUNCTION_USER_ID", "").strip()
+    return user_id or None
+
+
+def resolve_junction_user_id(client_user_id: str = "", session_user_id: str = "") -> str:
+    """
+    Resolve which Junction user to query.
+
+    Priority:
+    1. JUNCTION_USER_ID env var (UUID from Junction dashboard)
+    2. session_user_id already stored in GenoFit
+    3. lookup/create by JUNCTION_CLIENT_USER_ID env or client_user_id
+    """
+    override = configured_junction_user_id()
+    if override:
+        return override
+    if session_user_id:
+        return session_user_id
+    env_client = os.environ.get("JUNCTION_CLIENT_USER_ID", "").strip()
+    cid = env_client or (client_user_id or "genofit-local").strip() or "genofit-local"
+    return get_or_create_user(cid)
+
+
 def get_connected_provider_slugs(user_id: str) -> list[str]:
     client = get_junction_client()
     providers = client.user.get_connected_providers(user_id)

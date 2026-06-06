@@ -94,6 +94,37 @@ Oura/Fitbit buttons connect via Junction and pull metrics automatically.
 
 Apple Health still uses local XML upload; Junction merge runs when the API key is set.
 
+#### Use an existing Junction demo user (dashboard)
+
+GenoFit maps to a Junction user in one of three ways:
+
+1. **By UUID (recommended for dashboard demo users)** — copy the User ID from the Junction dashboard:
+
+```bash
+export JUNCTION_USER_ID=150db84c-537c-4cad-a6e9-24dc589d7fa2
+```
+
+Restart the backend, then click Oura/Fitbit. GenoFit pulls data from that user (including demo connections you already created in the dashboard).
+
+2. **By client user id** — if your dashboard user has a `client_user_id`, either:
+
+```bash
+export JUNCTION_CLIENT_USER_ID=your-demo-client-id
+```
+
+or enter that exact string as your name in onboarding step 1.
+
+3. **One-time API link** — with the backend running:
+
+```bash
+curl -X POST http://localhost:8000/api/junction/user \
+  -F "junction_user_id=YOUR-JUNCTION-USER-UUID"
+```
+
+Then click Oura/Fitbit or call `POST /api/junction/sync`.
+
+Check linkage: `GET http://localhost:8000/api/health` shows `junction_user_override: true` when `JUNCTION_USER_ID` is set.
+
 ### 4. Start the backend
 
 ```bash

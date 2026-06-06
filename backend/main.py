@@ -16,12 +16,13 @@ from services.claude import chat_with_context
 from services.openai_client import has_api_key as has_openai_api_key
 from services.openai_client import list_available_model_ids, model_setup_hint
 from services.junction_client import (
+    configured_junction_user_id,
     create_link_token,
     ensure_provider_connection,
     get_connected_provider_slugs,
-    get_or_create_user,
     has_junction_api_key,
     is_junction_sandbox,
+    resolve_junction_user_id,
     resolve_provider,
 )
 from parsers.junction_wearables import fetch_junction_metrics, merge_wearable_metrics
@@ -77,8 +78,16 @@ def persist_session() -> None:
 
 
 def _junction_client_user_id(client_user_id: str = "") -> str:
-    uid = (client_user_id or "genofit-local").strip()
+    env_client = os.getenv("JUNCTION_CLIENT_USER_ID", "").strip()
+    uid = env_client or (client_user_id or "genofit-local").strip()
     return uid or "genofit-local"
+
+
+def _resolve_junction_user(client_user_id: str = "", junction_user_id: str = "") -> str:
+    return resolve_junction_user_id(
+        client_user_id,
+        junction_user_id or session.get("junction_user_id", ""),
+    )
 
 
 def _merge_junction_metrics(metrics: dict, client_user_id: str = "") -> tuple[dict, dict]:
@@ -88,8 +97,7 @@ def _merge_junction_metrics(metrics: dict, client_user_id: str = "") -> tuple[di
 
     junction_meta: dict = {}
     try:
-        uid = _junction_client_user_id(client_user_id)
-        junction_user_id = get_or_create_user(uid)
+        junction_user_id = _resolve_junction_user(client_user_id)
         session["junction_user_id"] = junction_user_id
         junction_payload = fetch_junction_metrics(junction_user_id)
         metrics = merge_wearable_metrics(metrics, junction_payload)
@@ -217,6 +225,7 @@ async def upload_apple_health(
 async def junction_connect(
     provider: str = Form(...),
     client_user_id: str = Form(""),
+    junction_user_id: str = Form(""),
     redirect_url: str = Form(""),
 ):
     """
@@ -234,8 +243,7 @@ async def junction_connect(
         raise HTTPException(400, f"Unsupported provider: {provider}")
 
     try:
-        uid = _junction_client_user_id(client_user_id)
-        junction_user_id = get_or_create_user(uid)
+        junction_user_id = _resolve_junction_user(client_user_id, junction_user_id)
         session["junction_user_id"] = junction_user_id
 
         connection = ensure_provider_connection(
@@ -268,7 +276,10 @@ async def junction_connect(
 
 
 @api.post("/junction/sync")
-async def junction_sync(client_user_id: str = Form("")):
+async def junction_sync(
+    client_user_id: str = Form(""),
+    junction_user_id: str = Form(""),
+):
     """Refresh wearable metrics from Junction (Oura, Garmin, etc.)."""
     if not has_junction_api_key():
         raise HTTPException(
@@ -286,6 +297,34 @@ async def junction_sync(client_user_id: str = Form("")):
         raise HTTPException(502, f"Junction sync failed: {str(e)}") from e
 
 
+@api.post("/junction/user")
+async def junction_link_user(junction_user_id: str = Form(...)):
+    """Point this GenoFit session at an existing Junction user (e.g. dashboard demo user)."""
+    if not has_junction_api_key():
+        raise HTTPException(503, "Junction API is not configured.")
+
+    user_id = junction_user_id.strip()
+    if not user_id:
+        raise HTTPException(400, "junction_user_id is required.")
+
+    try:
+        session["junction_user_id"] = user_id
+        persist_session()
+        connected = get_connected_provider_slugs(user_id)
+        metrics, junction_meta = _merge_junction_metrics(session.get("metrics") or {}, "")
+        session["metrics"] = metrics
+        persist_session()
+        return {
+            "status": "ok",
+            "junction_user_id": user_id,
+            "connected_providers": connected,
+            "metrics": metrics,
+            "junction": junction_meta,
+        }
+    except Exception as e:
+        raise HTTPException(502, f"Could not link Junction user: {e}") from e
+
+
 @api.get("/junction/link-token")
 async def junction_link_token(
     client_user_id: str = "",
@@ -301,7 +340,7 @@ async def junction_link_token(
 
     try:
         uid = _junction_client_user_id(client_user_id)
-        junction_user_id = get_or_create_user(uid)
+        junction_user_id = _resolve_junction_user(client_user_id)
         session["junction_user_id"] = junction_user_id
         persist_session()
         token_data = create_link_token(
@@ -386,6 +425,7 @@ def health():
         "has_junction_api_key": has_junction_api_key(),
         "junction_env": os.getenv("JUNCTION_ENV", "sandbox"),
         "junction_sandbox_demo": is_junction_sandbox(),
+        "junction_user_override": bool(configured_junction_user_id()),
         "model_hint": model_setup_hint() if has_openai_api_key() else None,
     }
 
