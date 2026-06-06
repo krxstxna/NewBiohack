@@ -98,6 +98,38 @@ function appendDataInsights(list, insights) {
   }
 }
 
+function appendBulletList(list, bullets) {
+  for (const bullet of bullets || []) {
+    if (bullet) appendListItem(list, bullet);
+  }
+}
+
+function appendVisualMetrics(list, metrics) {
+  for (const m of metrics || []) {
+    if (!m?.label) continue;
+    const val = m.value != null && m.value !== "" ? m.value : "—";
+    const unit = m.unit ? ` ${m.unit}` : "";
+    appendListItem(list, `${m.label}: ${val}${unit}`);
+  }
+}
+
+function appendRecommendationSections(list, sections) {
+  if (!sections || typeof sections !== "object") return;
+  const headings = [
+    ["from_your_genetics", "From your genetics"],
+    ["from_your_data", "From your data"],
+    ["from_research", "From research"],
+  ];
+  for (const [key, label] of headings) {
+    const bullets = sections[key];
+    if (!bullets?.length) continue;
+    appendListItem(list, label, false);
+    for (const bullet of bullets) {
+      appendListItem(list, bullet);
+    }
+  }
+}
+
 const onboardingEl = document.getElementById("onboarding");
 const profileDashboardEl = document.getElementById("profile-dashboard");
 const workspaceEl  = document.getElementById("workspace");
@@ -246,6 +278,12 @@ function openDashboardDetail(sectionId) {
   let subtitle = cfg.subtitle;
 
   if (sectionId === "story") {
+    const arch = cachedProfile?.archetype || {};
+    if (arch.vq_cluster_label) appendListItem(list, arch.vq_cluster_label);
+    if (arch.vq_story_line) appendListItem(list, arch.vq_story_line);
+    for (const bullet of arch.vq_pattern_bullets || []) {
+      appendListItem(list, bullet);
+    }
     const primary = getPrimaryArchetype(cachedProfile);
     if (primary.name) {
       const score = primary.score != null ? ` (${primary.score}/100)` : "";
@@ -256,46 +294,59 @@ function openDashboardDetail(sectionId) {
       if (!sec?.name) continue;
       appendListItem(list, `Secondary: ${sec.name}${sec.score != null ? ` · ${sec.score}` : ""}`);
     }
-    if (cachedProfile?.archetype?.narrative) {
-      appendListItem(list, cachedProfile.archetype.narrative);
-    }
+    if (arch.tagline) appendListItem(list, arch.tagline);
+    if (arch.narrative) appendListItem(list, arch.narrative);
     const plain = page.plain_explanation || {};
     if (plain.headline) appendListItem(list, plain.headline);
     if (plain.body) appendListItem(list, plain.body);
     if (plain.analogy) appendListItem(list, `Analogy: ${plain.analogy}`);
     appendConnections(list, page.connections);
     appendDataInsights(list, page.data_at_a_glance);
-    for (const cite of page.literature_citations || []) {
-      appendListItem(list, cite.summary ? `${cite.topic}: ${cite.summary}` : cite.topic || "");
+    appendBulletList(list, page.bullet_summary);
+    appendVisualMetrics(list, page.visual_metrics);
+    const literature = page.literature || page.literature_citations || [];
+    for (const cite of literature) {
+      const pmid = cite.pmid ? ` (PMID ${cite.pmid})` : "";
+      appendListItem(list, cite.summary ? `${cite.topic}: ${cite.summary}${pmid}` : cite.topic || "");
     }
   } else if (sectionId === "training") {
     if (page.hero_summary) appendListItem(list, page.hero_summary);
     appendDataInsights(list, page.data_insights);
+    appendRecommendationSections(list, page.recommendation_sections);
     appendTipItems(list, page.tips || cachedProfile?.training);
+    appendBulletList(list, page.bullet_summary);
+    appendVisualMetrics(list, page.visual_metrics);
     if (page.this_week_focus) appendListItem(list, `This week: ${page.this_week_focus}`);
-    appendConnections(list, page.connections);
+    if (page.watch_for) appendListItem(list, `Watch for: ${page.watch_for}`);
   } else if (sectionId === "fuel") {
     if (page.hero_summary) appendListItem(list, page.hero_summary);
     appendDataInsights(list, page.data_insights);
+    appendRecommendationSections(list, page.recommendation_sections);
     appendTipItems(list, page.tips || cachedProfile?.nutrition);
+    appendBulletList(list, page.bullet_summary);
+    appendVisualMetrics(list, page.visual_metrics);
     for (const note of page.stack_notes || []) {
       appendListItem(list, note.note ? `${note.item}: ${note.note}` : note.item || "");
     }
     for (const add of page.suggested_additions || []) {
       appendListItem(list, `Consider: ${add}`);
     }
-    appendConnections(list, page.connections);
   } else if (sectionId === "recovery") {
+    if (page.hero_summary) appendListItem(list, page.hero_summary);
     const hero = page.hero || {};
     if (hero.summary) appendListItem(list, hero.summary);
     if (hero.recovery_score || hero.sleep_score) {
       appendListItem(list, `Recovery: ${hero.recovery_score || "—"} · Sleep: ${hero.sleep_score || "—"}`);
     }
     appendDataInsights(list, page.data_insights);
+    appendRecommendationSections(list, page.recommendation_sections);
     appendTipItems(list, page.sleep_tips);
     appendTipItems(list, page.recovery_tips || cachedProfile?.recovery);
-    if (page.tonight_action) appendListItem(list, `Tonight: ${page.tonight_action}`);
-    appendConnections(list, page.connections);
+    appendBulletList(list, page.bullet_summary);
+    appendVisualMetrics(list, page.visual_metrics);
+    if (page.tonight || page.tonight_action) {
+      appendListItem(list, `Tonight: ${page.tonight || page.tonight_action}`);
+    }
   }
 
   if (subtitle && page.hero_summary && sectionId !== "story") {
@@ -332,7 +383,11 @@ function renderProfileDashboard(profile) {
   }
 
   const badge = document.getElementById("hub-archetype-badge");
-  if (primary.name) {
+  const vqLabel = profile.archetype?.vq_cluster_label;
+  if (vqLabel) {
+    badge.textContent = vqLabel;
+    badge.classList.remove("hidden");
+  } else if (primary.name) {
     badge.textContent = primary.name;
     badge.classList.remove("hidden");
   } else {

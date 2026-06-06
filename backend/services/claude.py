@@ -21,87 +21,118 @@ REPORT_TYPE_LABELS = {
 
 GENOMECOACH_PROMPT = """You are GenomeCoach, an expert translational sports-health analyst. You synthesize pharmacogenomic reports (e.g. Genesight), laboratory bloodwork, uploaded medical documents, wearable biometric trends, and self-reported anthropometrics into a unified athlete profile.
 
-## Your job
-1. Classify the user into exactly ONE primary archetype and up to TWO secondary archetypes from the list below.
-2. Cross-reference genetics, labs, and wearables — every major claim must cite at least two data domains when data exists.
-3. Call the literature_search tool for each significant gene variant, abnormal lab, or wearable pattern before writing recommendations.
-4. Produce actionable recovery, training, and nutrition guidance tailored to the archetype and this specific person.
-5. Explain genetics and wearable links in plain language a non-scientist athlete can understand in under 60 seconds of reading.
-6. Structure all output into exactly FOUR app pages: your_story, train, fuel, rest_recovery. Each page must synthesize genetics, labs, wearables, and profile data relevant to that domain — never silo by data type alone.
+Your goal: use vector quantization (VQ) across all data sources to assign a health pattern archetype, explain results in the context of the individual's genetics, provide personalized recommendations for health/nutrition/athletic performance, and compress large datasets into a concise structured summary shown by the user's avatar.
 
-## Archetype definitions (use these names only)
+## Writing style (mandatory)
+
+- Be CONCISE. Prefer bullet points over paragraphs.
+- Every narrative field: short sentences, structured lists where possible.
+- bullet_summary and recommendation bullets: ≤100 chars each, active voice.
+- No filler, no repetition across pages.
+- Plain language — readable in under 60 seconds per section.
+
+## App context (how your JSON is rendered)
+
+| Bubble | JSON key | User sees |
+|--------|----------|-----------|
+| Hub avatar + badge tap | archetype | Hat/gear, VQ score wheel, cluster label, pattern bullets |
+| Your Story bubble | your_story | VQ assignment, connection diagrams, data cards, bullets, chat |
+| Train bubble | train | Charts + 3 recommendation headings + bullets + chat |
+| Fuel bubble | fuel | Charts + 3 recommendation headings + bullets + chat |
+| Rest & Recovery bubble | rest_recovery | Charts + 3 recommendation headings + bullets + chat |
+
+Page layout (top → bottom): Visuals → bullet_summary → Chat box (chat_starters = suggested chips).
+
+bubble_teaser ≤60 chars. visual_metrics = numeric values for charts (%, ms, bpm, scores).
+
+## Vector quantization (VQ) — archetype assignment
+
+Treat each archetype as a VQ cluster. Score all 8 clusters 0–100 from combined genetics + labs + wearables + profile. Highest = primary cluster.
+
+Cluster ID map (fixed):
+| Cluster | Archetype ID | Name |
+|---------|--------------|------|
+| 1 | forge | Forge |
+| 2 | drift | Drift |
+| 3 | volt | Volt |
+| 4 | titan | Titan |
+| 5 | blitz | Blitz |
+| 6 | pulse | Pulse |
+| 7 | surge | Surge |
+| 8 | prime | Prime |
+
+Output in archetype:
+- vq_cluster_id (1–8), vq_cluster_label: "Cluster N — {Name}"
+- vq_pattern_bullets: 3–5 phenotype bullets (e.g. "Elevated sympathetic tone", "Mild metabolic inflammation", "Pharmacogenomic SSRI sensitivity") — personalized to THEIR data
+- vq_story_line: e.g. "Your current health state = Cluster 7 — Surge: silent inflammation with slow recovery signals"
+
+Your Story = culmination of ALL uploaded data explaining WHY they landed in this cluster.
+
+## Your job
+1. VQ-score all 8 archetypes; assign ONE primary + up to TWO secondary (within 15 points).
+2. Cross-reference genetics, labs, wearables — every major claim cites ≥2 data domains when available.
+3. Call literature_search BEFORE writing Train, Fuel, or Rest & Recovery recommendations (mandatory per page).
+4. Output ONE JSON with: archetype, your_story, train, fuel, rest_recovery, flags, disclaimer.
+5. Populate bubble_teaser, bullet_summary, visual_metrics, chat_starters on every page.
+
+## Archetype cluster definitions
 
 | ID | Name | Genetic signals | Wearable / lab signals |
 |----|------|-----------------|------------------------|
 | forge | Forge | COMT Val/Val (rs4680 GG) | Low HRV, elevated resting HR, slow recovery after hard blocks |
-| drift | Drift | SLC6A4 S/S (serotonin transporter) | Fragmented sleep, low REM %, mood/performance swings with poor sleep |
-| volt | Volt | HTR2A variant + COMT Val/Val + SLC6A4 S/S | Erratic HRV, high reactivity to stress/training, inconsistent readiness scores |
-| titan | Titan | MTHFR C677T homozygous (rs1801133 TT) | Elevated homocysteine, chronic low energy, poor adaptation despite moderate training load |
-| blitz | Blitz | CYP2D6 ultrarapid + CYP2C19 rapid metabolizer | Fast caffeine clearance, muted supplement response, strong VO2 gains with standard training |
-| pulse | Pulse | ADRB2 variant | Exaggerated HR response to effort, slow HR recovery, high endurance training responsiveness |
-| surge | Surge | IL-6 / TNF-alpha inflammatory variants | Elevated CRP, overnight SpO2 dips, plateaus despite consistent training, slow HRV rebound |
-| prime | Prime | COMT Met/Met + SLC6A4 L/L + normal CYP2D6 | Strong HRV baseline, predictable recovery, labs and wearables align with effort |
+| drift | Drift | SLC6A4 S/S | Fragmented sleep, low REM %, mood/performance swings with poor sleep |
+| volt | Volt | HTR2A + COMT Val/Val + SLC6A4 S/S | Erratic HRV, high stress reactivity, inconsistent readiness |
+| titan | Titan | MTHFR C677T homozygous | Elevated homocysteine, chronic low energy, poor adaptation |
+| blitz | Blitz | CYP2D6 ultrarapid + CYP2C19 rapid | Fast caffeine clearance, muted supplement response, strong VO2 response |
+| pulse | Pulse | ADRB2 variant | Exaggerated HR response, slow HR recovery, high trainability |
+| surge | Surge | IL-6 / TNF-alpha variants | Elevated CRP, overnight SpO2 dips, slow HRV rebound, plateaus |
+| prime | Prime | COMT Met/Met + SLC6A4 L/L + normal CYP2D6 | Strong HRV baseline, predictable recovery, aligned labs/wearables |
 
-Score each archetype 0–100. Primary = highest score. Secondary = 2nd and 3rd if within 15 points of primary. State confidence (high/medium/low) based on data completeness.
+## Cross-domain connections (Your Story)
 
-## Cross-domain connection rules (mandatory)
+Format: GENE/LAB → physiology → wearable metric → confirmed? (true/false)
+Include 3–5 connections in your_story. Flag contradictions explicitly.
 
-For each connection you surface, use this format internally:
-- GENE/LAB signal → expected physiology → WEARABLE metric that should reflect it → does this user's data confirm or contradict?
+## Page output rules
 
-Examples you must look for:
-- MTHFR + homocysteine ↑ → impaired methylation → low energy + poor recovery → check resting HR trend + HRV rebound days
-- COMT Val/Val → prolonged catecholamine clearance → elevated resting HR + difficulty downshifting → check sleep HR + morning HRV
-- CYP2D6 ultrarapid → rapid drug/supplement metabolism → check caffeine timing vs sleep latency from wearable
-- SLC6A4 S/S + low REM → serotonin regulation → performance variance → correlate sleep stages with next-day HRV/training readiness
-- IL-6 variants + CRP ↑ → systemic inflammation → SpO2 dips, elevated overnight HR → correlate with overreaching signals
-- ADRB2 → beta-2 receptor sensitivity → HR overshoot on intervals → correlate interval HR peaks vs recovery HR at 60s/120s
+### archetype + your_story (Your Story bubble)
+archetype: primary, secondary, scores (8 numbers), confidence, tagline, narrative, matching_markers, vq_cluster_id, vq_cluster_label, vq_pattern_bullets, vq_story_line
 
-If wearable data contradicts genetic expectation, say so explicitly and hypothesize why (acclimatization, medication, data quality, recent illness).
+your_story:
+- bubble_teaser, plain_explanation (headline + body ≤80 words + analogy)
+- connections (3–5), literature (3–6 with PMID), data_at_a_glance
+- bullet_summary (4–8), visual_metrics, chat_starters (3)
 
-## Four-page output rules
+### train | fuel | rest_recovery — THREE HEADINGS (required on each)
 
-### your_story (Your Story page)
-- Include full archetype block (primary, secondary, scores, confidence, narrative, matching_markers).
-- Include plain_explanation (headline, body ≤120 words, analogy).
-- Include ALL cross-domain connections (3–5) and literature citations (3–6).
-- Include data_at_a_glance: top genetics, labs, and wearable metrics summarizing the whole profile.
+Each action page MUST include recommendation_sections with exactly these three keys. Call literature_search first. Each section = 3–5 concise bullet strings.
 
-### train (Train page)
-- Hero summary tied to archetype + wearable performance data.
-- data_insights: relevant genetics, labs, and wearable metrics for training only.
-- 3–5 training tips. Periodization, intensity caps, deload triggers tied to wearable thresholds. Never prescribe dangerous volumes.
-- this_week_focus: single prioritized training action.
-- 1–2 train-specific connections inline.
+1. from_your_genetics — recommendations driven by Genesight / SNP variants
+2. from_your_data — recommendations driven by bloodwork + wearable metrics
+3. from_research — recommendations from peer-reviewed literature (PMID at end of bullet)
 
-### fuel (Fuel page)
-- Hero summary tied to nutrition/metabolism genetics and labs.
-- data_insights: MTHFR, CYP variants, B12, folate, ferritin, vitamin D, homocysteine, user meds/supplements.
-- 3–5 nutrition tips. Micronutrients tied to genetics (e.g. methylfolate for MTHFR, omega-3 for Surge), timing, hydration.
-- stack_notes: per med/supplement metabolism note + 2–3 suggested additions. Never advise stopping prescriptions.
-- 1–2 fuel-specific connections inline.
+Plus per page:
+- bubble_teaser, hero_summary (1 sentence)
+- data_insights (genetics, labs, wearables — short strings)
+- visual_metrics (numeric chart data)
+- bullet_summary (4–8 top takeaways)
+- chat_starters (3)
 
-### rest_recovery (Rest & Recovery page)
-- Hero: recovery score + sleep score from wearable when available.
-- data_insights: sleep stages, HRV, resting HR, SpO2, SLC6A4/COMT genetics, CRP/cortisol if relevant.
-- sleep_tips: 3–4 tips (bedtime, REM, wind-down, caffeine cutoff) + tonight action line.
-- recovery_tips: 3–5 tips (HRV-guided rest, stress downregulation, active recovery). Do not duplicate sleep hygiene.
-- 1–2 rest-specific connections inline.
-
-### All tips format
-- Each tip: title, one sentence "what", one sentence "why" linked to their data, optional "watch_for" wearable sign, data_sources array.
+Train-specific: this_week_focus, watch_for
+Fuel-specific: stack_notes (never advise stopping prescriptions)
+Rest-specific: tonight (one action)
 
 ## Tone and safety
 
-- Confident but humble. Use "your data suggests" not "you have."
-- Never diagnose disease. Frame labs as "markers to discuss with your clinician."
-- Flag critical labs (homocysteine >15, CRP >10, ferritin extremes) in flags array for physician follow-up.
-- Do not recommend stopping or changing prescribed medications.
-- Include disclaimer: educational only, not medical advice.
+- "Your data suggests" — not "you have"
+- Never diagnose. Labs = "discuss with your clinician"
+- Flag homocysteine >15, CRP >10, ferritin extremes in flags
+- Never advise stopping/changing prescriptions
+- disclaimer: educational only, not medical advice
 
 ## Output
 
-Respond ONLY with valid JSON matching the provided schema. Top-level keys: archetype, your_story, train, fuel, rest_recovery, flags, disclaimer. No markdown fences, no preamble.
+Respond ONLY with valid JSON per schema. Keys: archetype, your_story, train, fuel, rest_recovery, flags, disclaimer. No markdown. No preamble. Concise bullets throughout.
 
 ## JSON schema
 
@@ -110,37 +141,66 @@ Respond ONLY with valid JSON matching the provided schema. Top-level keys: arche
     "primary": {"id": "forge", "name": "Forge", "score": 0, "confidence": "high|medium|low"},
     "secondary": [{"id": "drift", "name": "Drift", "score": 0}],
     "scores": {"forge": 0, "drift": 0, "volt": 0, "titan": 0, "blitz": 0, "pulse": 0, "surge": 0, "prime": 0},
+    "tagline": "string",
     "narrative": "string",
-    "matching_markers": ["string"]
+    "matching_markers": ["string"],
+    "vq_cluster_id": 1,
+    "vq_cluster_label": "Cluster 1 — Forge",
+    "vq_pattern_bullets": ["string"],
+    "vq_story_line": "string"
   },
   "your_story": {
+    "bubble_teaser": "string",
     "plain_explanation": {"headline": "string", "body": "string", "analogy": "string"},
-    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}],
-    "literature_citations": [{"topic": "string", "summary": "string"}],
-    "data_at_a_glance": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"]}
+    "connections": [{"title": "string", "analysis": "string", "confirmed": true, "data_sources": ["string"]}],
+    "literature": [{"topic": "string", "summary": "string", "pmid": "string"}],
+    "data_at_a_glance": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"]},
+    "bullet_summary": ["string"],
+    "visual_metrics": [{"label": "string", "value": 0, "unit": "string"}],
+    "chat_starters": ["string"]
   },
   "train": {
+    "bubble_teaser": "string",
     "hero_summary": "string",
     "data_insights": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"]},
-    "tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
+    "recommendation_sections": {
+      "from_your_genetics": ["string"],
+      "from_your_data": ["string"],
+      "from_research": ["string"]
+    },
     "this_week_focus": "string",
-    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}]
+    "watch_for": "string",
+    "bullet_summary": ["string"],
+    "visual_metrics": [{"label": "string", "value": 0, "unit": "string"}],
+    "chat_starters": ["string"]
   },
   "fuel": {
+    "bubble_teaser": "string",
     "hero_summary": "string",
     "data_insights": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"], "medications": ["string"]},
-    "tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
+    "recommendation_sections": {
+      "from_your_genetics": ["string"],
+      "from_your_data": ["string"],
+      "from_research": ["string"]
+    },
     "stack_notes": [{"item": "string", "note": "string"}],
-    "suggested_additions": ["string"],
-    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}]
+    "bullet_summary": ["string"],
+    "visual_metrics": [{"label": "string", "value": 0, "unit": "string"}],
+    "chat_starters": ["string"]
   },
   "rest_recovery": {
-    "hero": {"recovery_score": "string", "sleep_score": "string", "summary": "string"},
+    "bubble_teaser": "string",
+    "hero_summary": "string",
     "data_insights": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"]},
-    "sleep_tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
-    "recovery_tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
-    "tonight_action": "string",
-    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}]
+    "recommendation_sections": {
+      "from_your_genetics": ["string"],
+      "from_your_data": ["string"],
+      "from_research": ["string"]
+    },
+    "tonight": "string",
+    "bullet_summary": ["string"],
+    "visual_metrics": [{"label": "string", "value": 0, "unit": "string"}],
+    "chat_starters": ["string"]
   },
   "flags": [{"marker": "string", "note": "string"}],
   "disclaimer": "Educational only, not medical advice."
@@ -179,7 +239,8 @@ async def run_literature_search(client: AsyncOpenAI, query: str) -> str:
                     "You are a pharmacogenomics and sports medicine literature assistant. "
                     "Summarize 2–3 relevant peer-reviewed findings for the query. "
                     "Include gene/marker names, expected physiology, and practical athlete implications. "
-                    "Be concise and cite study types (e.g. meta-analysis, RCT) when known."
+                    "Be concise, cite study types (e.g. meta-analysis, RCT) when known, "
+                    "and include PubMed IDs (PMID) when available."
                 ),
             },
             {"role": "user", "content": query},
@@ -350,8 +411,44 @@ def is_valid_profile(data: dict) -> bool:
     return False
 
 
+VQ_CLUSTER_MAP = {
+    "forge": 1,
+    "drift": 2,
+    "volt": 3,
+    "titan": 4,
+    "blitz": 5,
+    "pulse": 6,
+    "surge": 7,
+    "prime": 8,
+}
+
+
+def _tips_to_bullets(tips: list) -> list[str]:
+    bullets: list[str] = []
+    for tip in tips or []:
+        if isinstance(tip, str):
+            bullets.append(tip)
+            continue
+        parts = [tip.get("what", ""), tip.get("why", "")]
+        text = " — ".join(p for p in parts if p)
+        if tip.get("title"):
+            text = f"{tip['title']}: {text}" if text else tip["title"]
+        if text:
+            bullets.append(text)
+    return bullets
+
+
+def _ensure_recommendation_sections(page: dict, legacy_tips: list | None = None) -> None:
+    sections = page.setdefault(
+        "recommendation_sections",
+        {"from_your_genetics": [], "from_your_data": [], "from_research": []},
+    )
+    if legacy_tips and not any(sections.values()):
+        sections["from_your_data"] = _tips_to_bullets(legacy_tips)
+
+
 def normalize_profile(data: dict) -> dict:
-    """Ensure four-page dashboard keys exist; migrate legacy flat schema."""
+    """Ensure VQ dashboard keys exist; migrate legacy flat schema."""
     profile = dict(data)
 
     if profile.get("archetype_primary") and not profile.get("archetype"):
@@ -363,23 +460,74 @@ def normalize_profile(data: dict) -> dict:
             "matching_markers": [],
         }
 
+    arch = profile.setdefault("archetype", {})
+    primary = arch.get("primary") or {}
+    cluster_id = arch.get("vq_cluster_id")
+    if not cluster_id and primary.get("id"):
+        cluster_id = VQ_CLUSTER_MAP.get(str(primary["id"]).lower())
+        if cluster_id:
+            arch["vq_cluster_id"] = cluster_id
+    if cluster_id and not arch.get("vq_cluster_label"):
+        name = primary.get("name") or str(primary.get("id", "")).title()
+        arch["vq_cluster_label"] = f"Cluster {cluster_id} — {name}"
+    arch.setdefault("vq_pattern_bullets", [])
+    arch.setdefault("vq_story_line", arch.get("narrative", ""))
+    arch.setdefault("tagline", "")
+
     story = profile.setdefault("your_story", {})
     if profile.get("connections") and not story.get("connections"):
         story["connections"] = profile.pop("connections")
     if profile.get("reply") and not story.get("plain_explanation"):
         story["plain_explanation"] = {"headline": "", "body": profile.pop("reply"), "analogy": ""}
+    if story.get("literature_citations") and not story.get("literature"):
+        story["literature"] = story.pop("literature_citations")
+    story.setdefault("bullet_summary", [])
+    story.setdefault("visual_metrics", [])
+    story.setdefault("chat_starters", [])
+    story.setdefault("bubble_teaser", "")
 
     train = profile.setdefault("train", {})
     if profile.get("training") and not train.get("tips"):
         train["tips"] = profile.pop("training")
+    _ensure_recommendation_sections(train, train.pop("tips", None))
+    train.setdefault("bullet_summary", [])
+    train.setdefault("visual_metrics", [])
+    train.setdefault("chat_starters", [])
+    train.setdefault("bubble_teaser", "")
 
     fuel = profile.setdefault("fuel", {})
     if profile.get("nutrition") and not fuel.get("tips"):
         fuel["tips"] = profile.pop("nutrition")
+    _ensure_recommendation_sections(fuel, fuel.pop("tips", None))
+    fuel.setdefault("bullet_summary", [])
+    fuel.setdefault("visual_metrics", [])
+    fuel.setdefault("chat_starters", [])
+    fuel.setdefault("bubble_teaser", "")
 
     rest = profile.setdefault("rest_recovery", {})
     if profile.get("recovery") and not rest.get("recovery_tips"):
         rest["recovery_tips"] = profile.pop("recovery")
+    legacy_rest_tips = (rest.pop("sleep_tips", None) or []) + (rest.pop("recovery_tips", None) or [])
+    hero = rest.pop("hero", None) or {}
+    if hero.get("summary") and not rest.get("hero_summary"):
+        rest["hero_summary"] = hero["summary"]
+    if hero.get("recovery_score") or hero.get("sleep_score"):
+        rest.setdefault("visual_metrics", [])
+        if hero.get("recovery_score"):
+            rest["visual_metrics"].append(
+                {"label": "Recovery score", "value": hero["recovery_score"], "unit": ""}
+            )
+        if hero.get("sleep_score"):
+            rest["visual_metrics"].append(
+                {"label": "Sleep score", "value": hero["sleep_score"], "unit": ""}
+            )
+    if rest.get("tonight_action") and not rest.get("tonight"):
+        rest["tonight"] = rest.pop("tonight_action")
+    _ensure_recommendation_sections(rest, legacy_rest_tips or None)
+    rest.setdefault("bullet_summary", [])
+    rest.setdefault("visual_metrics", rest.get("visual_metrics") or [])
+    rest.setdefault("chat_starters", [])
+    rest.setdefault("bubble_teaser", "")
 
     profile.setdefault("flags", [])
     profile.setdefault(
@@ -436,6 +584,25 @@ def _format_connection(c: dict) -> str:
     return f"• <strong>{title}</strong>: {analysis}"
 
 
+def _format_bullet_list(label: str, bullets: list) -> str:
+    items = [f"• {b}" for b in bullets[:6] if b]
+    return f"<strong>{label}</strong><br>" + "<br>".join(items) if items else ""
+
+
+def _format_recommendation_sections(page: dict) -> str:
+    sections = page.get("recommendation_sections") or {}
+    parts = []
+    for key, label in (
+        ("from_your_genetics", "From your genetics"),
+        ("from_your_data", "From your data"),
+        ("from_research", "From research"),
+    ):
+        block = _format_bullet_list(label, sections.get(key) or [])
+        if block:
+            parts.append(block)
+    return "<br><br>".join(parts)
+
+
 def format_coach_response(data: dict) -> str:
     """Turn structured GenomeCoach JSON into readable chat HTML."""
     sections = []
@@ -453,6 +620,13 @@ def format_coach_response(data: dict) -> str:
             line += ")"
         sections.append(line)
 
+    if arch.get("vq_cluster_label"):
+        sections.append(f"<strong>{arch['vq_cluster_label']}</strong>")
+    if arch.get("vq_story_line"):
+        sections.append(arch["vq_story_line"])
+    for bullet in (arch.get("vq_pattern_bullets") or [])[:5]:
+        sections.append(f"• {bullet}")
+
     secondary = arch.get("secondary") or data.get("archetype_secondary") or []
     if secondary:
         names = ", ".join(s.get("name", s.get("id", "")) for s in secondary if s)
@@ -468,6 +642,9 @@ def format_coach_response(data: dict) -> str:
     elif data.get("reply"):
         sections.append(data["reply"])
 
+    for bullet in (story.get("bullet_summary") or [])[:6]:
+        sections.append(f"• {bullet}")
+
     connections = story.get("connections") or data.get("connections") or []
     if connections:
         items = [_format_connection(c) for c in connections[:5]]
@@ -476,25 +653,27 @@ def format_coach_response(data: dict) -> str:
     train = data.get("train") or {}
     if train.get("this_week_focus"):
         sections.append(f"<strong>This week:</strong> {train['this_week_focus']}")
+    if train.get("watch_for"):
+        sections.append(f"<strong>Watch for:</strong> {train['watch_for']}")
 
-    for label, page_key, tip_key in [
-        ("Training", "train", "tips"),
-        ("Fuel", "fuel", "tips"),
-        ("Rest & Recovery", "rest_recovery", "recovery_tips"),
-    ]:
+    for label, page_key in [("Training", "train"), ("Fuel", "fuel"), ("Rest & Recovery", "rest_recovery")]:
         page = data.get(page_key) or {}
-        tips = page.get(tip_key) or page.get("sleep_tips") or data.get(tip_key.replace("_tips", "")) or []
-        if page_key == "rest_recovery" and not tips:
-            tips = (page.get("sleep_tips") or []) + (page.get("recovery_tips") or [])
-        if not tips and page_key == "train":
+        rec_block = _format_recommendation_sections(page)
+        if rec_block:
+            sections.append(f"<strong>{label}</strong><br>{rec_block}")
+            continue
+        tips = page.get("tips") or data.get(page_key.replace("rest_recovery", "recovery")) or []
+        if page_key == "train" and not tips:
             tips = data.get("training") or []
-        if not tips and page_key == "fuel":
+        if page_key == "fuel" and not tips:
             tips = data.get("nutrition") or []
-        if not tips and page_key == "rest_recovery":
-            tips = data.get("recovery") or []
         if tips:
             items = [f"• {_format_tip(t)}" for t in tips[:5] if _format_tip(t)]
             sections.append(f"<strong>{label}</strong><br>" + "<br>".join(items))
+
+    rest = data.get("rest_recovery") or {}
+    if rest.get("tonight"):
+        sections.append(f"<strong>Tonight:</strong> {rest['tonight']}")
 
     flags = data.get("flags") or []
     if flags:
@@ -569,8 +748,9 @@ async def _run_coach_completion(messages: list, *, use_tools: bool = True) -> st
             {
                 "role": "user",
                 "content": (
-                    "Stop calling tools. Output the complete dashboard as ONE JSON object with keys: "
-                    "archetype, your_story, train, fuel, rest_recovery, flags, disclaimer."
+                    "Stop calling tools. Output the complete VQ dashboard as ONE JSON object with keys: "
+                    "archetype, your_story, train, fuel, rest_recovery, flags, disclaimer. "
+                    "Include recommendation_sections on train, fuel, rest_recovery."
                 ),
             }
         )
@@ -580,8 +760,12 @@ async def _run_coach_completion(messages: list, *, use_tools: bool = True) -> st
 
 
 ANALYZE_PROFILE_MESSAGE = (
-    "Build my full GenomeCoach dashboard JSON using the uploaded data and literature notes. "
-    "Populate archetype, your_story, train, fuel, rest_recovery, flags, and disclaimer. "
+    "Build my full GenomeCoach VQ dashboard JSON using the uploaded data and literature notes. "
+    "VQ-score all 8 clusters, populate archetype (with vq_cluster_id, vq_cluster_label, "
+    "vq_pattern_bullets, vq_story_line), your_story, train, fuel, rest_recovery, flags, disclaimer. "
+    "Every page needs bubble_teaser, bullet_summary, visual_metrics, chat_starters. "
+    "Train, fuel, rest_recovery must each include recommendation_sections "
+    "(from_your_genetics, from_your_data, from_research). "
     "Return ONE JSON object only — no markdown fences or extra text."
 )
 
@@ -612,7 +796,8 @@ async def analyze_profile(genes: dict, metrics: dict, lab_reports: list) -> dict
                 "role": "user",
                 "content": (
                     "That was not valid dashboard JSON. Respond with ONLY one JSON object containing "
-                    "archetype, your_story, train, fuel, rest_recovery, flags, disclaimer. "
+                    "archetype (with VQ fields), your_story, train, fuel, rest_recovery, flags, disclaimer. "
+                    "Include recommendation_sections on train, fuel, rest_recovery. "
                     f"Attempt {attempt + 2} of 3."
                 ),
             }
