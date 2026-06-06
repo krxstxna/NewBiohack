@@ -42,6 +42,30 @@ function registerChart(chart) {
   return chart;
 }
 
+const CHART_TICK = { color: "#8BA3C7", font: { size: 10 } };
+const CHART_GRID = { color: "rgba(255, 255, 255, 0.08)" };
+
+function chartScales(xStacked = false, yStacked = false, yTitle = "") {
+  return {
+    x: {
+      stacked: xStacked,
+      grid: { display: false, color: CHART_GRID },
+      ticks: { maxTicksLimit: 8, ...CHART_TICK },
+    },
+    y: {
+      stacked: yStacked,
+      beginAtZero: !yStacked,
+      grid: { color: CHART_GRID },
+      ticks: CHART_TICK,
+      title: yTitle ? { display: true, text: yTitle, color: "#8BA3C7", font: { size: 10 } } : undefined,
+    },
+  };
+}
+
+function chartLegend() {
+  return { position: "bottom", labels: { boxWidth: 10, color: "#8BA3C7", font: { size: 10 } } };
+}
+
 function lineChart(canvas, series, label, color) {
   if (!window.Chart || !hasSeriesData(series)) return null;
   return registerChart(new Chart(canvas, {
@@ -63,10 +87,7 @@ function lineChart(canvas, series, label, color) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
-        y: { beginAtZero: false, ticks: { font: { size: 10 } } },
-      },
+      scales: chartScales(),
     },
   }));
 }
@@ -88,10 +109,7 @@ function barChart(canvas, series, label, color) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
-        y: { beginAtZero: true, ticks: { font: { size: 10 } } },
-      },
+      scales: chartScales(false, false),
     },
   }));
 }
@@ -126,11 +144,8 @@ function stackedSleepChart(canvas, charts) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } } },
-      scales: {
-        x: { stacked: true, grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
-        y: { stacked: true, title: { display: true, text: "min", font: { size: 10 } }, ticks: { font: { size: 10 } } },
-      },
+      plugins: { legend: chartLegend() },
+      scales: chartScales(true, true, "min"),
     },
   }));
 }
@@ -147,9 +162,7 @@ function doughnutChart(canvas, labels, values, colors) {
       responsive: true,
       maintainAspectRatio: false,
       cutout: "62%",
-      plugins: {
-        legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } },
-      },
+      plugins: { legend: chartLegend() },
     },
   }));
 }
@@ -175,8 +188,8 @@ function archetypeBarChart(canvas, scores) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-        y: { max: 100, beginAtZero: true, ticks: { font: { size: 10 } } },
+        ...chartScales(),
+        y: { ...chartScales().y, max: 100, beginAtZero: true },
       },
     },
   }));
