@@ -23,6 +23,7 @@ interface OnboardingFlowProps {
   onNameSave: (name: string) => void;
   onProfileReady: (name: string, metrics: Metrics | null) => void;
   onSkipToChat: (name: string) => void;
+  onSessionRefresh?: () => void;
 }
 
 type UploadState = "idle" | "loading" | "ok" | "error";
@@ -30,6 +31,7 @@ type UploadState = "idle" | "loading" | "ok" | "error";
 const JUNCTION_PROVIDERS: Record<string, string> = {
   oura: "Oura",
   fitbit: "Fitbit",
+  garmin: "Garmin",
 };
 
 const CATEGORIES = ["Bloodwork", "ancestry", "gut microbiome", "other genetic"];
@@ -45,6 +47,7 @@ export function OnboardingFlow({
   onNameSave,
   onProfileReady,
   onSkipToChat,
+  onSessionRefresh,
 }: OnboardingFlowProps) {
   const [step, setStep] = useState(initialStep);
   const [name, setName] = useState(initialName);
@@ -114,6 +117,7 @@ export function OnboardingFlow({
       setUploadedLabNames(nextNames);
       setLabFiles(nextRows);
       setLabStatus({ state: "ok", text: labUploadSummary(data) });
+      onSessionRefresh?.();
     } catch (err) {
       setLabStatus({ state: "error", text: formatFetchError(err) });
     }
@@ -125,6 +129,7 @@ export function OnboardingFlow({
     try {
       const data = await uploadAppleHealth(file, name.trim());
       setWearableStatus({ state: "ok", text: metricsStatus(data.metrics, data.junction) });
+      onSessionRefresh?.();
       window.setTimeout(() => goToProfile(data.metrics || null), 600);
     } catch (err) {
       setWearableStatus({ state: "error", text: formatFetchError(err) });
@@ -277,8 +282,8 @@ export function OnboardingFlow({
           <>
             <h2 className="text-center text-xl font-bold text-slate-800">Connect to wearable data</h2>
 
-            <div className="mt-8 flex items-center justify-center gap-4">
-              {(["oura", "fitbit", "apple"] as const).map((wearable) => (
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+              {(["oura", "fitbit", "garmin", "apple"] as const).map((wearable) => (
                 <button
                   key={wearable}
                   type="button"
@@ -296,9 +301,13 @@ export function OnboardingFlow({
                       ? "bg-emerald-500 text-white shadow-md"
                       : "border border-slate-200 bg-white/90 text-slate-700 hover:bg-slate-100"
                   } ${wearable === "oura" ? "rounded-full" : "rounded-2xl"}`}
-                  title={wearable === "apple" ? "Apple Health" : JUNCTION_PROVIDERS[wearable] || wearable}
+                  title={
+                    wearable === "apple"
+                      ? "Apple Health"
+                      : JUNCTION_PROVIDERS[wearable] || wearable
+                  }
                 >
-                  {wearable === "oura" ? "O" : wearable === "fitbit" ? "F" : "A"}
+                  {wearable === "oura" ? "O" : wearable === "fitbit" ? "F" : wearable === "garmin" ? "G" : "A"}
                 </button>
               ))}
             </div>

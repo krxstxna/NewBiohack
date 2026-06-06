@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProfileWhiteboard } from "./components/profile/ProfileWhiteboard";
 import { ProfileDetail } from "./components/profile/ProfileDetail";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { ChatWorkspace } from "./components/chat/ChatWorkspace";
 import { getApiBase, formatApiError, parseApiResponse } from "./api/client";
-import type { Metrics, PodId, Profile } from "./types/profile";
+import type { GeneInfo, LabReport, Metrics, PodId, Profile } from "./types/profile";
 import { GenoFitLogo } from "./components/ui/GenoFitLogo";
 import { pickAvatar } from "./lib/profileHelpers";
 import { clearSession, fetchSession, syncJunctionWearables } from "./lib/onboardingApi";
@@ -46,18 +46,34 @@ export default function App() {
   const [userName, setUserName] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [genes, setGenes] = useState<Record<string, GeneInfo>>({});
+  const [labReports, setLabReports] = useState<LabReport[]>([]);
   const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileStatus, setProfileStatus] = useState("");
   const [ready, setReady] = useState(false);
   const avatarSrc = useMemo(() => pickAvatar(), []);
 
-  const finishToChat = () => {
+  const refreshSessionData = useCallback(async () => {
+    try {
+      const data = await fetchSession();
+      if (data.genes) setGenes(data.genes as Record<string, GeneInfo>);
+      if (data.lab_reports) setLabReports(data.lab_reports);
+      if (data.metrics) setMetrics(data.metrics);
+      if (data.profile && Object.keys(data.profile as object).length) setProfile(data.profile as Profile);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const finishToChat = (message?: string) => {
     saveOnboarding({ complete: true, dashboardViewed: true, name: userName });
+    if (message) setPendingChatMessage(message);
     setView("chat");
   };
 
-  const runProfileAnalyze = async () => {
+  const runProfileAnalyze = useCallback(async () => {
     setProfileLoading(true);
     setProfileStatus("Analyzing your profile…");
     try {
@@ -67,12 +83,14 @@ export default function App() {
       setProfile(data.profile || null);
       if (data.metrics) setMetrics(data.metrics);
       setProfileStatus("Tap a pillar to explore your profile");
+      return true;
     } catch (err) {
       setProfileStatus(err instanceof Error ? err.message : "Analysis failed");
+      return false;
     } finally {
       setProfileLoading(false);
     }
-  };
+  }, []);
 
   const showProfileHub = async (name: string, incomingMetrics: Metrics | null = null) => {
     setUserName(name);
@@ -82,10 +100,34 @@ export default function App() {
     await runProfileAnalyze();
   };
 
-  const skipToChat = (name: string) => {
+  const skipToChat = async (name: string) => {
     setUserName(name);
     saveOnboarding({ name, complete: true, dashboardViewed: true });
+    await refreshSessionData();
     setView("chat");
+  };
+
+  const goToWelcome = () => {
+    saveOnboarding({ complete: false, dashboardViewed: false });
+    localStorage.removeItem("genofit_profile_avatar");
+    setOnboardingStep(0);
+    setView("onboarding");
+  };
+
+  const startOver = async () => {
+    await clearSession();
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("genofit_profile_avatar");
+    window.location.href = window.location.pathname;
+  };
+
+  const openProfileHub = () => {
+    setView("profile");
+    if (!profile) {
+      void runProfileAnalyze();
+    } else {
+      setProfileStatus("Tap a pillar to explore your profile");
+    }
   };
 
   useEffect(() => {
@@ -107,7 +149,6 @@ export default function App() {
         setView("onboarding");
         setReady(true);
 
-        const label = JUNCTION_LABELS[junctionProvider] || junctionProvider;
         if (params.get("state") !== "success") {
           return;
         }
@@ -130,6 +171,8 @@ export default function App() {
           setProfile(data.profile as Profile);
         }
         if (data.metrics) setMetrics(data.metrics);
+        if (data.genes) setGenes(data.genes as Record<string, GeneInfo>);
+        if (data.lab_reports) setLabReports(data.lab_reports);
         if (data.history) setHistory(data.history);
 
         const hasData =
@@ -188,6 +231,7 @@ export default function App() {
               }}
               onProfileReady={showProfileHub}
               onSkipToChat={skipToChat}
+              onSessionRefresh={() => void refreshSessionData()}
             />
           </motion.div>
         )}
@@ -205,7 +249,8 @@ export default function App() {
                 setActivePod(podId);
                 setView("profile-detail");
               }}
-              onContinueChat={finishToChat}
+              onContinueChat={() => finishToChat()}
+              onRetry={() => void runProfileAnalyze()}
             />
           </motion.div>
         )}
@@ -215,8 +260,10 @@ export default function App() {
             <ProfileDetail
               podId={activePod}
               profile={profile}
+              metrics={metrics}
               onBack={() => setView("profile")}
-              onContinueChat={finishToChat}
+              onContinueChat={() => finishToChat()}
+              onAskInChat={(message) => finishToChat(message)}
             />
           </motion.div>
         )}
@@ -225,9 +272,17 @@ export default function App() {
           <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <ChatWorkspace
               userName={userName}
+              profile={profile}
+              genes={genes}
+              labReports={labReports}
+              metrics={metrics}
               history={history}
+              pendingMessage={pendingChatMessage}
+              onPendingMessageHandled={() => setPendingChatMessage(null)}
               onHistoryChange={setHistory}
-              onOpenProfile={() => setView("profile")}
+              onOpenProfile={openProfileHub}
+              onGoHome={goToWelcome}
+              onStartOver={startOver}
             />
           </motion.div>
         )}

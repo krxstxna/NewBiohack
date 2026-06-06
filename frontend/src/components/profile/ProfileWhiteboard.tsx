@@ -14,6 +14,7 @@ interface ProfileWhiteboardProps {
   status?: string;
   onOpenPod: (podId: PodId) => void;
   onContinueChat: () => void;
+  onRetry?: () => void;
 }
 
 const PODS: PodId[] = ["training", "fuel", "recovery", "story"];
@@ -27,9 +28,12 @@ export function ProfileWhiteboard({
   status,
   onOpenPod,
   onContinueChat,
+  onRetry,
 }: ProfileWhiteboardProps) {
   const { name, tagline } = getArchetypeHeader(profile);
   const badge = profile?.archetype?.vq_cluster_label || name || undefined;
+
+  const isError = status?.toLowerCase().includes("fail") || status?.toLowerCase().includes("error") || status?.toLowerCase().includes("could not");
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC]">
@@ -116,7 +120,12 @@ export function ProfileWhiteboard({
         </div>
 
         <div className="mt-8 flex w-full max-w-md flex-col items-center gap-4">
-          <p className="text-center text-sm text-slate-500">{status || "Tap a pillar to explore your profile"}</p>
+          <p className={`text-center text-sm ${isError ? "text-rose-600" : "text-slate-500"}`}>
+            {status || "Tap a pillar to explore your profile"}
+          </p>
+          {isError && onRetry ? (
+            <Button onClick={onRetry}>Retry analysis</Button>
+          ) : null}
           <Button variant="secondary" onClick={onContinueChat}>
             Continue to chat
           </Button>
