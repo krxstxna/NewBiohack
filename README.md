@@ -140,6 +140,7 @@ Then restart the backend and reload the page.
 **Deploy**
 - Backend: `railway up` or `fly deploy` (add a `Procfile`: `web: uvicorn main:app --host 0.0.0.0 --port $PORT`)
 - Frontend: push to Netlify or Vercel (static files only)
+- GitHub Pages: enable Pages in the repository settings and choose **GitHub Actions** as the source. The included workflow publishes the static frontend to `https://krxstxna.github.io/NewBiohack/`. If the repository stays private, Pages availability depends on the GitHub account/organization plan.
 
 ---
 
