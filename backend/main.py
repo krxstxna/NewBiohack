@@ -26,7 +26,7 @@ app.add_middleware(
 
 session = load_session()
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent
 
 
 def persist_session() -> None:

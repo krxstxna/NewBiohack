@@ -15,19 +15,18 @@ GenoFit explains **why** your HRV, sleep, resting HR, and recovery scores look t
 ## Project structure
 
 ```
-genofit/
-├── backend/
-│   ├── main.py                  # FastAPI app (upload + chat endpoints)
-│   ├── parsers/
-│   │   ├── genesight.py         # PDF → gene dict (Claude Haiku + regex fallback)
-│   │   └── apple_health.py      # export.xml → summarized metrics
-│   ├── services/
-│   │   └── claude.py            # Claude Sonnet chat with genomic system prompt
-│   └── requirements.txt
-└── frontend/
-    ├── index.html
-    ├── style.css
-    └── app.js
+NewBiohack/
+├── index.html
+├── style.css
+├── app.js
+└── backend/
+    ├── main.py                  # FastAPI app (upload + chat endpoints)
+    ├── parsers/
+    │   ├── genesight.py         # PDF → gene dict (Claude Haiku + regex fallback)
+    │   └── apple_health.py      # export.xml → summarized metrics
+    ├── services/
+    │   └── claude.py            # Claude Sonnet chat with genomic system prompt
+    └── requirements.txt
 ```
 
 ---
@@ -71,7 +70,7 @@ The API runs at `http://localhost:8000`.
 Open **http://localhost:8000** in your browser for the full app (frontend + API).  
 Swagger UI is at `http://localhost:8000/docs`.
 
-You can also open `frontend/index.html` directly if you prefer — it will talk to the backend at `localhost:8000`.
+You can also open `index.html` directly if you prefer — it will talk to the backend at `localhost:8000`.
 
 ---
 
