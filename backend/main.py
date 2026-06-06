@@ -40,7 +40,7 @@ app.add_middleware(
         "http://127.0.0.1:8000",
     ],
     allow_credentials=True,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origin_regex=r"https?://((localhost|127\.0\.0\.1)(:\d+)?|[\w.-]+\.onrender\.com|[\w.-]+\.railway\.app|[\w.-]+\.vercel\.app|krxstxna\.github\.io)",
     allow_methods=["*"],
     allow_headers=["*"],
 )

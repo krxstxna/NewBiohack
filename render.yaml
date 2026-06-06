@@ -1,0 +1,19 @@
+# Render Blueprint — full GenoFit app (frontend + API on one URL)
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: genofit
+    runtime: python
+    plan: free
+    buildCommand: >-
+      cd frontend && npm ci && npm run build &&
+      cd ../backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      - key: NODE_VERSION
+        value: "20"
