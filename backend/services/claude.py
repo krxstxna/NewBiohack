@@ -287,18 +287,9 @@ def parse_coach_response(raw: str) -> tuple[str, dict | None]:
     return raw, None
 
 
-async def chat_with_context(
-    message: str,
-    genes: dict,
-    metrics: dict,
-    lab_reports: list,
-    history: list,
-) -> tuple[str, list, dict | None]:
+async def _run_coach_completion(messages: list) -> str:
+    """Run GenomeCoach with tool-use loop; return raw model text."""
     client = async_client()
-
-    trimmed_history = history[-(MAX_HISTORY_TURNS * 2):]
-    system = build_system_prompt(genes, metrics, lab_reports)
-    messages = [{"role": "system", "content": system}, *trimmed_history, {"role": "user", "content": message}]
     raw = ""
 
     for _ in range(8):
@@ -330,6 +321,40 @@ async def chat_with_context(
 
         raw = choice.message.content or ""
         break
+
+    return raw
+
+
+ANALYZE_PROFILE_MESSAGE = (
+    "Analyze my complete uploaded profile now. Classify my primary and secondary "
+    "archetypes, surface cross-domain connections between genetics, labs, and wearables, "
+    "and provide recovery, training, and nutrition guidance. Return JSON only."
+)
+
+
+async def analyze_profile(genes: dict, metrics: dict, lab_reports: list) -> dict | None:
+    """Run initial GenomeCoach analysis for the profile dashboard (no chat history)."""
+    system = build_system_prompt(genes, metrics, lab_reports)
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": ANALYZE_PROFILE_MESSAGE},
+    ]
+    raw = await _run_coach_completion(messages)
+    _, structured = parse_coach_response(raw)
+    return structured
+
+
+async def chat_with_context(
+    message: str,
+    genes: dict,
+    metrics: dict,
+    lab_reports: list,
+    history: list,
+) -> tuple[str, list, dict | None]:
+    trimmed_history = history[-(MAX_HISTORY_TURNS * 2):]
+    system = build_system_prompt(genes, metrics, lab_reports)
+    messages = [{"role": "system", "content": system}, *trimmed_history, {"role": "user", "content": message}]
+    raw = await _run_coach_completion(messages)
 
     display_reply, structured = parse_coach_response(raw)
 

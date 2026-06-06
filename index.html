@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=9" />
+  <link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
   <div id="app">
@@ -88,6 +88,44 @@
       </div>
     </div>
 
+    <!-- ── Profile dashboard (after wearables) ───────────────────── -->
+    <div id="profile-dashboard" class="hidden">
+      <div class="dashboard-inner">
+        <header class="dashboard-hero">
+          <div class="dashboard-avatar-wrap">
+            <div class="dashboard-avatar" id="dashboard-avatar">
+              <span class="avatar-initials" id="avatar-initials">?</span>
+              <span class="avatar-ring"></span>
+            </div>
+          </div>
+          <div class="dashboard-hero-text">
+            <p class="dashboard-greeting">Hi, <span id="dashboard-name">there</span></p>
+            <p class="dashboard-archetype-label">Your GenomeCoach archetype</p>
+            <h1 class="dashboard-archetype-name" id="dashboard-archetype-name">Analyzing…</h1>
+            <p class="dashboard-archetype-meta" id="dashboard-archetype-meta"></p>
+            <div class="dashboard-secondary" id="dashboard-secondary"></div>
+          </div>
+        </header>
+
+        <p class="dashboard-summary" id="dashboard-summary"></p>
+
+        <section class="dashboard-section">
+          <h2 class="dashboard-section-title">Cross-domain correlations</h2>
+          <div class="dashboard-correlations" id="dashboard-correlations"></div>
+        </section>
+
+        <section class="dashboard-section dashboard-metrics-section">
+          <h2 class="dashboard-section-title">Wearable snapshot</h2>
+          <div class="dashboard-metrics" id="dashboard-metrics"></div>
+        </section>
+
+        <div class="dashboard-actions">
+          <button class="wizard-btn" id="dashboard-continue" type="button">Continue to chat</button>
+          <p class="dashboard-disclaimer" id="dashboard-disclaimer"></p>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Main workspace (chat) ─────────────────────────────────── -->
     <div id="workspace" class="hidden">
       <aside id="sidebar">
@@ -146,6 +184,6 @@
 
   </div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

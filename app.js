@@ -15,8 +15,13 @@ const STORAGE_KEY = "genofit_onboarding";
 let isLoading = false;
 let currentStep = 0;
 let userName = "";
+let cachedProfile = null;
+let cachedMetrics = null;
+
+const ARCHETYPE_IDS = ["forge", "drift", "volt", "titan", "blitz", "pulse", "surge", "prime"];
 
 const onboardingEl = document.getElementById("onboarding");
+const profileDashboardEl = document.getElementById("profile-dashboard");
 const workspaceEl  = document.getElementById("workspace");
 const messagesEl   = document.getElementById("messages");
 const inputEl      = document.getElementById("user-input");
@@ -55,12 +60,13 @@ function showStep(index) {
 }
 
 function goToWelcome() {
-  saveOnboarding({ complete: false });
+  saveOnboarding({ complete: false, dashboardViewed: false });
   uploadedLabFiles.clear();
   labFileList.innerHTML = "";
   document.getElementById("genesight-label")?.classList.remove("loaded");
   setWizardUploadState("genesight", "idle", "");
   workspaceEl.classList.add("hidden");
+  profileDashboardEl.classList.add("hidden");
   onboardingEl.classList.remove("hidden");
   showStep(0);
 }
@@ -74,19 +80,138 @@ document.getElementById("home-logo")?.addEventListener("keydown", (e) => {
 });
 
 function finishOnboarding() {
-  saveOnboarding({ complete: true, name: userName });
+  saveOnboarding({ complete: true, dashboardViewed: true, name: userName });
   onboardingEl.classList.add("hidden");
+  profileDashboardEl.classList.add("hidden");
   workspaceEl.classList.remove("hidden");
   enterWorkspace();
 }
 
+function getInitials(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function renderDashboardMetrics(metrics) {
+  const container = document.getElementById("dashboard-metrics");
+  container.innerHTML = "";
+  const LABELS = {
+    hrv:             m => [`HRV`, `${m.latest_ms ?? m.avg_ms} ms`],
+    resting_hr:      m => [`Resting HR`, `${m.latest_bpm ?? m.avg_bpm} bpm`],
+    spo2:            m => [`SpO2`, `${m.latest_pct ?? m.avg_pct}%`],
+    sleep:           m => [`Sleep`, `${m.avg_hours} hrs/night`],
+    steps:           m => [`Steps`, `${Math.round(m.avg_daily).toLocaleString()}/day`],
+    vo2_max:         m => [`VO2 Max`, `${m.latest} mL/kg/min`],
+    active_calories: m => [`Active cal`, `${Math.round(m.avg_daily_kcal)}/day`],
+  };
+
+  for (const [key, fmt] of Object.entries(LABELS)) {
+    if (!metrics?.[key]) continue;
+    const [label, val] = fmt(metrics[key]);
+    const card = document.createElement("div");
+    card.className = "dashboard-metric-card";
+    card.innerHTML = `<span class="metric-label">${label}</span><span class="metric-val">${val}</span>`;
+    container.appendChild(card);
+  }
+}
+
+function renderProfileDashboard(profile, metrics) {
+  cachedProfile = profile;
+  cachedMetrics = metrics;
+
+  const primary = profile?.archetype_primary || {};
+  const archetypeId = (primary.id || "prime").toLowerCase();
+  const avatar = document.getElementById("dashboard-avatar");
+  avatar.className = "dashboard-avatar";
+  if (ARCHETYPE_IDS.includes(archetypeId)) {
+    avatar.classList.add(`archetype-${archetypeId}`);
+  }
+
+  document.getElementById("avatar-initials").textContent = getInitials(userName);
+  document.getElementById("dashboard-name").textContent = userName || "there";
+  document.getElementById("dashboard-archetype-name").textContent =
+    primary.name || "Your profile";
+  document.getElementById("dashboard-archetype-meta").textContent =
+    primary.score != null
+      ? `${primary.score}/100 · ${primary.confidence || "medium"} confidence`
+      : "";
+
+  const secondaryEl = document.getElementById("dashboard-secondary");
+  secondaryEl.innerHTML = "";
+  for (const sec of profile?.archetype_secondary || []) {
+    if (!sec?.name) continue;
+    const chip = document.createElement("span");
+    chip.className = "archetype-chip";
+    chip.textContent = sec.score != null ? `${sec.name} · ${sec.score}` : sec.name;
+    secondaryEl.appendChild(chip);
+  }
+
+  document.getElementById("dashboard-summary").textContent = profile?.reply || "";
+
+  const corrEl = document.getElementById("dashboard-correlations");
+  corrEl.innerHTML = "";
+  const connections = profile?.connections || [];
+  if (!connections.length) {
+    corrEl.innerHTML = `<p class="dashboard-summary" style="margin:0">No cross-domain correlations returned yet.</p>`;
+  } else {
+    for (const conn of connections) {
+      const card = document.createElement("article");
+      card.className = "correlation-card";
+      card.innerHTML = `
+        <h3>${escapeHtml(conn.title || "Connection")}</h3>
+        <p>${escapeHtml(conn.analysis || "")}</p>
+      `;
+      corrEl.appendChild(card);
+    }
+  }
+
+  renderDashboardMetrics(metrics || {});
+  document.getElementById("dashboard-disclaimer").textContent =
+    profile?.disclaimer || "Educational only, not medical advice.";
+}
+
+async function showProfileDashboard(metrics) {
+  onboardingEl.classList.add("hidden");
+  workspaceEl.classList.add("hidden");
+  profileDashboardEl.classList.remove("hidden");
+
+  document.getElementById("dashboard-name").textContent = userName || "there";
+  document.getElementById("avatar-initials").textContent = getInitials(userName);
+  document.getElementById("dashboard-archetype-name").textContent = "Analyzing your profile…";
+  document.getElementById("dashboard-archetype-meta").textContent = "";
+  document.getElementById("dashboard-summary").textContent =
+    "GenomeCoach is connecting your genetics, labs, and wearable data…";
+  document.getElementById("dashboard-correlations").innerHTML = "";
+  document.getElementById("dashboard-secondary").innerHTML = "";
+  renderDashboardMetrics(metrics || {});
+
+  try {
+    const res = await fetch(`${API}/profile/analyze`, { method: "POST" });
+    const data = await parseApiResponse(res);
+    if (!res.ok) throw new Error(formatApiError(data, res.status));
+    renderProfileDashboard(data.profile, data.metrics || metrics);
+  } catch (err) {
+    document.getElementById("dashboard-archetype-name").textContent = "Profile ready";
+    document.getElementById("dashboard-archetype-meta").textContent = "Analysis unavailable";
+    document.getElementById("dashboard-summary").textContent =
+      `Wearable data loaded. ${formatFetchError(err)} You can still continue to chat.`;
+    renderDashboardMetrics(metrics || {});
+  }
+}
+
+document.getElementById("dashboard-continue")?.addEventListener("click", finishOnboarding);
+
 function enterWorkspace() {
   document.getElementById("sidebar-name").textContent = userName || "there";
   if (!messagesEl.children.length) {
-    addAiMessage(
-      `Hi ${escapeHtml(userName || "there")} — ask me anything about your lab results, genetics, and wearable data. ` +
-      `I'll connect the dots across your reports and biometrics.`
-    );
+    const archetype = cachedProfile?.archetype_primary?.name;
+    const intro = archetype
+      ? `You're classified as <strong>${escapeHtml(archetype)}</strong>. Ask me to go deeper on any correlation or recommendation.`
+      : `Hi ${escapeHtml(userName || "there")} — ask me anything about your lab results, genetics, and wearable data. ` +
+        `I'll connect the dots across your reports and biometrics.`;
+    addAiMessage(intro);
   }
 }
 
@@ -262,7 +387,7 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
       status += ` · ${data.junction.errors[0]}`;
     }
     setWizardUploadState("apple", "ok", status);
-    setTimeout(finishOnboarding, 600);
+    setTimeout(() => showProfileDashboard(data.metrics), 600);
   } catch (err) {
     setWizardUploadState("apple", "error", formatFetchError(err));
     e.target.value = "";
@@ -308,7 +433,7 @@ async function connectJunctionWearable(wearable) {
       status += ` · ${data.junction.errors[0]}`;
     }
     setWizardUploadState("apple", "ok", status);
-    setTimeout(finishOnboarding, count ? 600 : 1200);
+    setTimeout(() => showProfileDashboard(data.metrics), count ? 600 : 1200);
   } catch (err) {
     setWizardUploadState("apple", "error", formatFetchError(err));
   }
@@ -345,7 +470,7 @@ async function syncJunctionWearables(wearableLabel) {
     }
     setWizardUploadState("apple", "ok", status);
     if (count || connected.length) {
-      setTimeout(finishOnboarding, connected.length && !count ? 1200 : 600);
+      setTimeout(() => showProfileDashboard(data.metrics), connected.length && !count ? 1200 : 600);
     }
   } catch (err) {
     setWizardUploadState("apple", "error", formatFetchError(err));
@@ -596,15 +721,31 @@ function restoreChatHistory(history) {
       document.getElementById("genesight-label")?.classList.add("loaded");
     }
     if (data.has_metrics) renderMetrics(data.metrics);
+    if (data.profile && Object.keys(data.profile).length) {
+      cachedProfile = data.profile;
+      cachedMetrics = data.metrics;
+    }
 
     const hasData = data.has_genes || data.has_metrics || data.has_lab_reports || (data.history_length > 0);
     showResetLink(hasData || saved.complete);
 
-    // Only skip onboarding if user explicitly finished it (not just because data exists)
     const onboardingDone = saved.complete === true;
+    const dashboardViewed = saved.dashboardViewed === true;
 
-    if (onboardingDone) {
+    if (onboardingDone && dashboardViewed) {
       onboardingEl.classList.add("hidden");
+      profileDashboardEl.classList.add("hidden");
+      workspaceEl.classList.remove("hidden");
+      enterWorkspace();
+      restoreChatHistory(data.history || []);
+    } else if (onboardingDone && data.has_profile && data.has_metrics && !dashboardViewed) {
+      onboardingEl.classList.add("hidden");
+      workspaceEl.classList.add("hidden");
+      profileDashboardEl.classList.remove("hidden");
+      renderProfileDashboard(data.profile, data.metrics);
+    } else if (onboardingDone) {
+      onboardingEl.classList.add("hidden");
+      profileDashboardEl.classList.add("hidden");
       workspaceEl.classList.remove("hidden");
       enterWorkspace();
       restoreChatHistory(data.history || []);

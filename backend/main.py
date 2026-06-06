@@ -12,7 +12,7 @@ from openai import APIError, APIStatusError, AuthenticationError
 from parsers.lab_report import parse_lab_reports_batch
 from parsers.genesight import _merge_gene_dicts
 from parsers.apple_health import parse_apple_health_xml
-from services.claude import chat_with_context
+from services.claude import analyze_profile, chat_with_context
 from services.openai_client import has_api_key as has_openai_api_key
 from services.openai_client import list_available_model_ids, model_setup_hint
 from services.junction_client import (
@@ -65,6 +65,7 @@ app.add_middleware(NoCacheStaticMiddleware)
 session = load_session()
 session.setdefault("lab_reports", [])
 session.setdefault("junction_user_id", "")
+session.setdefault("profile", {})
 
 
 def persist_session() -> None:
@@ -74,6 +75,7 @@ def persist_session() -> None:
         session["history"],
         session.get("lab_reports", []),
         session.get("junction_user_id", ""),
+        session.get("profile", {}),
     )
 
 
@@ -401,6 +403,50 @@ async def chat(req: ChatRequest):
     return result
 
 
+@api.post("/profile/analyze")
+async def profile_analyze():
+    """Run GenomeCoach analysis for the profile dashboard after wearable upload."""
+    if not session["metrics"]:
+        raise HTTPException(400, "Upload wearable data first.")
+
+    require_api_key()
+    try:
+        structured = await analyze_profile(
+            session["genes"],
+            session["metrics"],
+            session.get("lab_reports", []),
+        )
+    except AuthenticationError:
+        raise HTTPException(
+            401,
+            "Invalid API key. Check that NEBIUS_API_KEY is set correctly in your shell.",
+        )
+    except APIStatusError as e:
+        detail = e.message
+        if e.status_code == 404:
+            detail = (
+                f"{detail} Unset GENOFIT_LITERATURE_MODEL / GENOFIT_CHAT_MODEL if set to an invalid ID. "
+                f"{model_setup_hint()}"
+            )
+        raise HTTPException(502, f"ChatGPT API error: {detail}")
+    except APIError as e:
+        raise HTTPException(502, f"ChatGPT API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, f"Profile analysis failed: {str(e)}")
+
+    if not structured:
+        raise HTTPException(502, "Could not parse GenomeCoach analysis.")
+
+    session["profile"] = structured
+    persist_session()
+    return {
+        "status": "ok",
+        "profile": structured,
+        "metrics": session["metrics"],
+        "genes": session["genes"],
+    }
+
+
 # ── State endpoints ───────────────────────────────────────────────────────────
 
 @api.get("/models")
@@ -440,6 +486,8 @@ def get_session():
         "genes": session["genes"],
         "metrics": session["metrics"],
         "lab_reports": session.get("lab_reports", []),
+        "profile": session.get("profile", {}),
+        "has_profile": bool(session.get("profile")),
         "history": session["history"],
         "history_length": len(session["history"]),
     }
@@ -452,6 +500,7 @@ def clear_session():
     session["history"] = []
     session["lab_reports"] = []
     session["junction_user_id"] = ""
+    session["profile"] = {}
     wipe_session()
     return {"status": "cleared"}
 

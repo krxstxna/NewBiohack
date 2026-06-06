@@ -42,6 +42,12 @@ def init_db() -> None:
             )
         except sqlite3.OperationalError:
             pass
+        try:
+            conn.execute(
+                "ALTER TABLE session ADD COLUMN profile TEXT NOT NULL DEFAULT '{}'"
+            )
+        except sqlite3.OperationalError:
+            pass
         conn.execute(
             """
             INSERT OR IGNORE INTO session (id, genes, metrics, history)
@@ -57,16 +63,20 @@ def load_session() -> dict:
     init_db()
     with _connect() as conn:
         row = conn.execute(
-            "SELECT genes, metrics, history, lab_reports, junction_user_id FROM session WHERE id = 1"
+            "SELECT genes, metrics, history, lab_reports, junction_user_id, profile FROM session WHERE id = 1"
         ).fetchone()
         if not row:
-            return {"genes": {}, "metrics": {}, "history": [], "lab_reports": [], "junction_user_id": ""}
+            return {
+                "genes": {}, "metrics": {}, "history": [], "lab_reports": [],
+                "junction_user_id": "", "profile": {},
+            }
         return {
             "genes": json.loads(row["genes"]),
             "metrics": json.loads(row["metrics"]),
             "history": json.loads(row["history"]),
             "lab_reports": json.loads(row["lab_reports"]),
             "junction_user_id": row["junction_user_id"] or "",
+            "profile": json.loads(row["profile"]) if row["profile"] else {},
         }
 
 
@@ -76,6 +86,7 @@ def save_session(
     history: list,
     lab_reports: list | None = None,
     junction_user_id: str | None = None,
+    profile: dict | None = None,
 ) -> None:
     init_db()
     with _connect() as conn:
@@ -85,10 +96,13 @@ def save_session(
         if junction_user_id is None:
             row = conn.execute("SELECT junction_user_id FROM session WHERE id = 1").fetchone()
             junction_user_id = (row["junction_user_id"] or "") if row else ""
+        if profile is None:
+            row = conn.execute("SELECT profile FROM session WHERE id = 1").fetchone()
+            profile = json.loads(row["profile"]) if row and row["profile"] else {}
         conn.execute(
             """
             UPDATE session
-            SET genes = ?, metrics = ?, history = ?, lab_reports = ?, junction_user_id = ?
+            SET genes = ?, metrics = ?, history = ?, lab_reports = ?, junction_user_id = ?, profile = ?
             WHERE id = 1
             """,
             (
@@ -97,6 +111,7 @@ def save_session(
                 json.dumps(history),
                 json.dumps(lab_reports),
                 junction_user_id or "",
+                json.dumps(profile or {}),
             ),
         )
 
