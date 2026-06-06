@@ -18,8 +18,6 @@ let userName = "";
 let cachedProfile = null;
 let cachedMetrics = null;
 
-const ARCHETYPE_IDS = ["forge", "drift", "volt", "titan", "blitz", "pulse", "surge", "prime"];
-
 const PROFILE_AVATARS = [
   "assets/avatars/avatar-peach.png",
   "assets/avatars/avatar-green.png",
