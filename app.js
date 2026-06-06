@@ -145,8 +145,10 @@ function goToWelcome() {
   setWizardUploadState("genesight", "idle", "");
   workspaceEl.classList.add("hidden");
   profileDashboardEl.classList.add("hidden");
+  profileDashboardEl.classList.remove("detail-open");
   document.getElementById("dashboard-detail")?.classList.add("hidden");
   document.getElementById("dashboard-hub")?.classList.remove("hidden");
+  document.getElementById("detail-back")?.classList.add("hidden");
   onboardingEl.classList.remove("hidden");
   showStep(0);
 }
@@ -192,8 +194,10 @@ function openDashboardDetail(sectionId) {
   const cfg = DASHBOARD_SECTIONS[sectionId];
   if (!cfg) return;
 
+  profileDashboardEl.classList.add("detail-open");
   document.getElementById("dashboard-hub").classList.add("hidden");
   document.getElementById("dashboard-detail").classList.remove("hidden");
+  document.getElementById("detail-back").classList.remove("hidden");
 
   document.getElementById("detail-title").textContent = cfg.title;
   const subtitleEl = document.getElementById("detail-subtitle");
@@ -274,8 +278,11 @@ function openDashboardDetail(sectionId) {
 }
 
 function closeDashboardDetail() {
+  profileDashboardEl.classList.remove("detail-open");
   document.getElementById("dashboard-detail").classList.add("hidden");
   document.getElementById("dashboard-hub").classList.remove("hidden");
+  document.getElementById("detail-back").classList.add("hidden");
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function renderProfileDashboard(profile) {
@@ -306,8 +313,10 @@ async function showProfileDashboard(metrics) {
   onboardingEl.classList.add("hidden");
   workspaceEl.classList.add("hidden");
   profileDashboardEl.classList.remove("hidden");
+  profileDashboardEl.classList.remove("detail-open");
   document.getElementById("dashboard-hub").classList.remove("hidden");
   document.getElementById("dashboard-detail").classList.add("hidden");
+  document.getElementById("detail-back").classList.add("hidden");
 
   document.getElementById("dashboard-name").textContent = userName || "there";
   setHubBlobsEnabled(false);
@@ -344,6 +353,8 @@ document.querySelectorAll(".hub-blob").forEach((btn) => {
 });
 
 document.getElementById("detail-back")?.addEventListener("click", closeDashboardDetail);
+
+document.getElementById("detail-to-chat")?.addEventListener("click", finishOnboarding);
 
 document.getElementById("detail-ama")?.addEventListener("click", () => {
   const prompt = document.getElementById("detail-ama").dataset.prompt || "";
@@ -892,8 +903,10 @@ function restoreChatHistory(history) {
       onboardingEl.classList.add("hidden");
       workspaceEl.classList.add("hidden");
       profileDashboardEl.classList.remove("hidden");
+      profileDashboardEl.classList.remove("detail-open");
       document.getElementById("dashboard-hub").classList.remove("hidden");
       document.getElementById("dashboard-detail").classList.add("hidden");
+      document.getElementById("detail-back").classList.add("hidden");
       document.getElementById("dashboard-name").textContent = userName || "there";
       renderProfileDashboard(data.profile);
     } else if (onboardingDone) {

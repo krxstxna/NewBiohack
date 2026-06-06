@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=11" />
+  <link rel="stylesheet" href="style.css?v=12" />
 </head>
 <body>
   <div id="app">
@@ -90,40 +90,44 @@
 
     <!-- ── Profile dashboard (after wearables) ───────────────────── -->
     <div id="profile-dashboard" class="hidden">
-      <!-- Hub: avatar + four blobs -->
-      <div id="dashboard-hub" class="dashboard-hub">
-        <h1 class="hub-greeting">Hi, <span id="dashboard-name">there</span></h1>
+      <div class="dashboard-shell">
+        <header class="dashboard-header">
+          <button type="button" class="detail-back hidden" id="detail-back" aria-label="Back to profile hub">
+            ← Back
+          </button>
+          <h1 class="hub-greeting">Hi, <span id="dashboard-name">there</span></h1>
+        </header>
 
-        <div class="hub-stage" id="hub-stage">
-          <button type="button" class="hub-blob blob-tl" data-section="training" disabled>Training</button>
-          <button type="button" class="hub-blob blob-tr" data-section="fuel" disabled>Fuel</button>
+        <!-- Hub: avatar + four blobs -->
+        <div id="dashboard-hub" class="dashboard-panel dashboard-panel--hub">
+          <div class="hub-stage" id="hub-stage">
+            <button type="button" class="hub-blob blob-tl" data-section="training" disabled>Training</button>
+            <button type="button" class="hub-blob blob-tr" data-section="fuel" disabled>Fuel</button>
 
-          <div class="hub-avatar-wrap">
-            <div class="hub-avatar" id="dashboard-avatar" aria-hidden="true">
-              <svg class="avatar-figure" viewBox="0 0 80 120" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-                <circle cx="40" cy="18" r="12"/>
-                <line x1="40" y1="30" x2="40" y2="68"/>
-                <line x1="40" y1="42" x2="18" y2="58"/>
-                <line x1="40" y1="42" x2="62" y2="58"/>
-                <line x1="40" y1="68" x2="22" y2="105"/>
-                <line x1="40" y1="68" x2="58" y2="105"/>
-              </svg>
+            <div class="hub-avatar-wrap">
+              <div class="hub-avatar" id="dashboard-avatar" aria-hidden="true">
+                <svg class="avatar-figure" viewBox="0 0 80 120" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                  <circle cx="40" cy="18" r="12"/>
+                  <line x1="40" y1="30" x2="40" y2="68"/>
+                  <line x1="40" y1="42" x2="18" y2="58"/>
+                  <line x1="40" y1="42" x2="62" y2="58"/>
+                  <line x1="40" y1="68" x2="22" y2="105"/>
+                  <line x1="40" y1="68" x2="58" y2="105"/>
+                </svg>
+              </div>
+              <p class="hub-archetype-badge hidden" id="hub-archetype-badge"></p>
             </div>
-            <p class="hub-archetype-badge hidden" id="hub-archetype-badge"></p>
+
+            <button type="button" class="hub-blob blob-bl" data-section="recovery" disabled>Rest + Recovery</button>
+            <button type="button" class="hub-blob blob-br" data-section="story" disabled>Your Story</button>
           </div>
 
-          <button type="button" class="hub-blob blob-bl" data-section="recovery" disabled>Rest + Recovery</button>
-          <button type="button" class="hub-blob blob-br" data-section="story" disabled>Your Story</button>
+          <p class="hub-status" id="dashboard-status">Analyzing your profile…</p>
+          <button type="button" class="hub-skip wizard-link" id="dashboard-continue">Continue to chat</button>
         </div>
 
-        <p class="hub-status" id="dashboard-status">Analyzing your profile…</p>
-        <button type="button" class="hub-skip wizard-link" id="dashboard-continue">Continue to chat</button>
-      </div>
-
-      <!-- Detail card (Fuel, Training, etc.) -->
-      <div id="dashboard-detail" class="dashboard-detail hidden">
-        <div class="detail-frame">
-          <button type="button" class="detail-back" id="detail-back" aria-label="Back to hub">←</button>
+        <!-- Detail: in-page card (Fuel, Training, etc.) -->
+        <div id="dashboard-detail" class="dashboard-panel dashboard-panel--detail hidden">
           <div class="detail-card">
             <h2 class="detail-title" id="detail-title">Fuel</h2>
             <p class="detail-subtitle" id="detail-subtitle">Personalized Nutrition Recs</p>
@@ -132,7 +136,10 @@
               (based on your info)
             </p>
             <ul class="detail-list" id="detail-list"></ul>
-            <button type="button" class="detail-ama" id="detail-ama">AMA / add info</button>
+            <div class="detail-actions">
+              <button type="button" class="detail-ama" id="detail-ama">AMA / add info</button>
+              <button type="button" class="detail-chat-link" id="detail-to-chat">Continue to chat</button>
+            </div>
           </div>
         </div>
       </div>
@@ -196,6 +203,6 @@
 
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
