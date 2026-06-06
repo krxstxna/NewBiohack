@@ -738,6 +738,48 @@ html, body {
   line-height: 1;
 }
 
+.detail-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+  width: 100%;
+}
+
+.detail-charts.hidden {
+  display: none;
+}
+
+.chart-card {
+  border: 1.5px solid rgba(17, 17, 17, 0.12);
+  border-radius: 16px;
+  padding: 10px 10px 8px;
+  background: #fff;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #555;
+  margin: 0 0 6px;
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 120px;
+}
+
+.chart-canvas-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .detail-list {
   flex: 1;
   list-style: none;

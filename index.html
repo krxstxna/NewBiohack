@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=16" />
+  <link rel="stylesheet" href="style.css?v=17" />
 </head>
 <body>
   <div id="app">
@@ -146,6 +146,7 @@
               <span class="detail-list-icon" aria-hidden="true">☰</span>
               (based on your info)
             </p>
+            <div id="detail-charts" class="detail-charts hidden"></div>
             <ul class="detail-list" id="detail-list"></ul>
             <div class="detail-actions">
               <button type="button" class="detail-ama" id="detail-ama">AMA / add info</button>
@@ -215,6 +216,8 @@
 
   </div>
 
-  <script src="app.js?v=23"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="charts.js?v=1"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

@@ -318,6 +318,7 @@ function openDashboardDetail(sectionId) {
 
   const list = document.getElementById("detail-list");
   list.innerHTML = "";
+  renderDashboardCharts(sectionId, cachedMetrics, cachedProfile);
 
   if (sectionId === "story") {
     const arch = cachedProfile?.archetype || {};
@@ -396,6 +397,7 @@ function openDashboardDetail(sectionId) {
 }
 
 function closeDashboardDetail() {
+  destroyDashboardCharts();
   profileDashboardEl.classList.remove("detail-open");
   document.getElementById("dashboard-detail").classList.add("hidden");
   document.getElementById("dashboard-hub").classList.remove("hidden");
