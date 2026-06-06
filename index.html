@@ -99,6 +99,11 @@
           </div>
         </div>
 
+        <div class="sidebar-section nav-section">
+          <button class="nav-btn active" id="nav-chat" type="button">Chat</button>
+          <button class="nav-btn" id="nav-vq" type="button">Health Codes</button>
+        </div>
+
         <div class="sidebar-section" id="gene-section" style="display:none">
           <div class="section-label">Your Genes</div>
           <div id="gene-list"></div>
@@ -135,6 +140,126 @@
           <button id="send-btn" onclick="send()" aria-label="Send">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
+        </div>
+      </main>
+
+      <main id="vq-panel" class="hidden">
+        <div class="vq-page">
+          <header class="vq-hero">
+            <div>
+              <p class="eyebrow">Interpretable phenotype retrieval</p>
+              <h1>Vector Health Codes</h1>
+              <p>
+                Combine GeneSight, Apple Watch summaries, blood work, and run/walk context into a
+                fused embedding, then map it to the closest discrete health-code cluster.
+              </p>
+            </div>
+            <button class="wizard-btn vq-run-btn" id="run-vq-btn" type="button">Generate health code</button>
+          </header>
+
+          <section class="vq-model-card">
+            <div class="model-step">
+              <span>1</span>
+              <strong>Encoders</strong>
+              <small>genetics + wearables + labs + activity</small>
+            </div>
+            <div class="model-arrow">→</div>
+            <div class="model-step">
+              <span>2</span>
+              <strong>Fusion</strong>
+              <small>normalized multimodal embedding</small>
+            </div>
+            <div class="model-arrow">→</div>
+            <div class="model-step">
+              <span>3</span>
+              <strong>VQ bottleneck</strong>
+              <small>nearest discrete health code</small>
+            </div>
+            <div class="model-arrow">→</div>
+            <div class="model-step">
+              <span>4</span>
+              <strong>Explanation</strong>
+              <small>cluster traits + genetic context</small>
+            </div>
+          </section>
+
+          <div class="vq-grid">
+            <section class="vq-card">
+              <div class="card-heading">
+                <h2>Incoming data</h2>
+                <button class="mini-btn" id="prefill-vq-btn" type="button">Use uploaded data</button>
+              </div>
+              <p class="card-note">
+                Uploaded GeneSight and Apple Health values prefill automatically when available.
+                Add labs and running/walking values manually for the MVP.
+              </p>
+
+              <div class="input-group">
+                <h3>Wearables</h3>
+                <div class="field-grid">
+                  <label>HRV avg (ms)<input id="vq-hrv" type="number" inputmode="decimal" placeholder="42" /></label>
+                  <label>Resting HR (bpm)<input id="vq-rhr" type="number" inputmode="decimal" placeholder="62" /></label>
+                  <label>Sleep (hrs/night)<input id="vq-sleep" type="number" inputmode="decimal" step="0.1" placeholder="7.2" /></label>
+                  <label>VO2 max<input id="vq-vo2" type="number" inputmode="decimal" step="0.1" placeholder="41" /></label>
+                  <label>Steps/day<input id="vq-steps" type="number" inputmode="numeric" placeholder="8500" /></label>
+                  <label>Run/walk min/week<input id="vq-active-min" type="number" inputmode="numeric" placeholder="180" /></label>
+                </div>
+              </div>
+
+              <div class="input-group">
+                <h3>Blood work</h3>
+                <div class="field-grid">
+                  <label>LDL (mg/dL)<input id="vq-ldl" type="number" inputmode="decimal" placeholder="130" /></label>
+                  <label>HDL (mg/dL)<input id="vq-hdl" type="number" inputmode="decimal" placeholder="55" /></label>
+                  <label>Triglycerides<input id="vq-trig" type="number" inputmode="decimal" placeholder="110" /></label>
+                  <label>hs-CRP (mg/L)<input id="vq-crp" type="number" inputmode="decimal" step="0.1" placeholder="1.4" /></label>
+                  <label>Fasting glucose<input id="vq-glucose" type="number" inputmode="decimal" placeholder="92" /></label>
+                  <label>Vitamin D (ng/mL)<input id="vq-vitd" type="number" inputmode="decimal" placeholder="35" /></label>
+                </div>
+              </div>
+            </section>
+
+            <section class="vq-card result-card">
+              <div class="card-heading">
+                <h2>Result</h2>
+                <span class="status-pill" id="vq-status">Ready</span>
+              </div>
+
+              <div id="vq-empty" class="empty-state">
+                Enter values or use uploaded data, then generate a health code.
+              </div>
+
+              <div id="vq-result" class="hidden">
+                <div class="code-badge">
+                  <span id="vq-code">HC-00</span>
+                  <strong id="vq-code-name">Cluster name</strong>
+                  <small id="vq-confidence">Confidence --%</small>
+                </div>
+
+                <p class="result-summary" id="vq-summary"></p>
+
+                <div class="result-section">
+                  <h3>Top contributing signals</h3>
+                  <ul id="vq-signals" class="insight-list"></ul>
+                </div>
+
+                <div class="result-section">
+                  <h3>Genetic context</h3>
+                  <ul id="vq-genetics" class="insight-list"></ul>
+                </div>
+
+                <div class="result-section">
+                  <h3>Next useful data</h3>
+                  <ul id="vq-next" class="insight-list"></ul>
+                </div>
+              </div>
+
+              <p class="clinical-note">
+                This is a prototype clustering explanation, not diagnosis or medical advice.
+                Health-code labels must be validated with clinical review or enrichment analysis.
+              </p>
+            </section>
+          </div>
         </div>
       </main>
     </div>

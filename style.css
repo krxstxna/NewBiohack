@@ -394,6 +394,28 @@ html, body {
 .app-sub  { font-size: 11px; color: var(--muted); }
 
 .sidebar-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.nav-section {
+  display: flex;
+  gap: 6px;
+}
+.nav-btn {
+  flex: 1;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nav-btn:hover,
+.nav-btn.active {
+  color: var(--text);
+  border-color: var(--blue);
+  background: var(--blue-lt);
+}
 .section-label {
   font-size: 10px;
   font-weight: 600;
@@ -564,6 +586,289 @@ html, body {
 #send-btn:hover { background: var(--blue-dk); }
 #send-btn:disabled { opacity: 0.4; cursor: default; }
 
+/* ── Vector health-code page ────────────────────────────────────── */
+#vq-panel {
+  flex: 1;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 32%),
+    var(--bg);
+}
+
+.vq-page {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.vq-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.vq-hero h1 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1.05;
+  margin: 4px 0 12px;
+}
+
+.vq-hero p {
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 720px;
+}
+
+.eyebrow {
+  color: var(--blue) !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vq-run-btn {
+  margin-top: 6px;
+  white-space: nowrap;
+}
+
+.vq-model-card {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(19, 39, 67, 0.78);
+}
+
+.model-step {
+  min-height: 92px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--navy-mid);
+}
+
+.model-step span {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--blue-lt);
+  color: var(--blue);
+  font-weight: 800;
+  font-size: 0.75rem;
+  margin-bottom: 10px;
+}
+
+.model-step strong,
+.model-step small {
+  display: block;
+}
+
+.model-step small {
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.model-arrow {
+  color: var(--hint);
+  font-weight: 800;
+}
+
+.vq-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.vq-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  padding: 18px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+}
+
+.card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.card-heading h2 {
+  font-size: 1.05rem;
+}
+
+.card-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin-bottom: 18px;
+}
+
+.mini-btn {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--navy-mid);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mini-btn:hover {
+  border-color: var(--blue);
+  color: var(--text);
+  background: var(--blue-lt);
+}
+
+.input-group {
+  margin-top: 18px;
+}
+
+.input-group h3,
+.result-section h3 {
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.field-grid input {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--navy-mid);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.field-grid input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-lt);
+}
+
+.result-card {
+  position: sticky;
+  top: 18px;
+}
+
+.status-pill {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--blue-lt);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.empty-state {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  background: var(--navy-mid);
+}
+
+.code-badge {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0 14px;
+  padding: 18px;
+  border: 1px solid rgba(59, 130, 246, 0.42);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.05));
+}
+
+.code-badge span {
+  color: var(--blue);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.code-badge strong {
+  font-size: 1.35rem;
+}
+
+.code-badge small {
+  color: var(--muted);
+}
+
+.result-summary {
+  color: var(--text);
+  line-height: 1.65;
+  margin-bottom: 18px;
+}
+
+.result-section {
+  margin-top: 16px;
+}
+
+.insight-list {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.insight-list li {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--navy-mid);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.insight-list strong {
+  color: var(--text);
+}
+
+.clinical-note {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--hint);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
@@ -571,4 +876,12 @@ html, body {
   .wizard-card { padding: 36px 24px 28px; min-height: 420px; }
   #workspace { flex-direction: column; }
   #sidebar { width: 100%; max-height: 40vh; }
+  .vq-page { padding: 18px; }
+  .vq-hero,
+  .card-heading { flex-direction: column; align-items: stretch; }
+  .vq-model-card,
+  .vq-grid,
+  .field-grid { grid-template-columns: 1fr; }
+  .model-arrow { display: none; }
+  .result-card { position: static; }
 }

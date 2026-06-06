@@ -10,6 +10,13 @@ Upload your GeneSight PDF → upload your Apple Health export → ask questions 
 
 GenoFit explains **why** your HRV, sleep, resting HR, and recovery scores look the way they do, grounded in your specific gene variants (COMT, SLC6A4, MTHFR, CYP2D6, CYP2C19, etc.).
 
+The **Health Codes** page adds a hackathon MVP for vector-quantized phenotype retrieval:
+
+1. Encodes genetics, wearable summaries, labs, and run/walk context into normalized axes.
+2. Fuses those axes into one interpretable health embedding.
+3. Maps the embedding to the nearest discrete prototype code, such as `HC-07`.
+4. Explains the match with top contributing signals and genetics context.
+
 ---
 
 ## Project structure
@@ -140,6 +147,12 @@ Then restart the backend and reload the page.
 **Deploy**
 - Backend: `railway up` or `fly deploy` (add a `Procfile`: `web: uvicorn main:app --host 0.0.0.0 --port $PORT`)
 - Frontend: push to Netlify or Vercel (static files only)
+
+**GitHub Pages / 404 checklist**
+- If the repository is private, GitHub shows a 404 to visitors who are not signed in with access.
+- Make sure Pages is enabled in **Settings → Pages** and points at the branch/folder that contains `index.html`.
+- For a project site, the public URL is usually `https://<username>.github.io/<repo-name>/`.
+- The static GitHub Pages version can render the frontend, but `/api/*` calls require the FastAPI backend to be deployed separately.
 
 ---
 
