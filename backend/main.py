@@ -3,8 +3,7 @@ from pathlib import Path
 import anthropic
 from fastapi import APIRouter, FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -40,7 +39,8 @@ class NoCacheStaticMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
         path = request.url.path
-        if path == "/" or path.endswith((".html", ".js", ".css")):
+        is_frontend_route = path == "/" or (not path.startswith("/api") and not Path(path).suffix)
+        if is_frontend_route or path.endswith((".html", ".js", ".css")):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -248,8 +248,42 @@ app.add_api_route("/session", clear_session, methods=["DELETE"])
 
 # ── Frontend (must be mounted after API routes) ─────────────────────────────
 
-if FRONTEND_DIR.is_dir():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+def frontend_file(path: str) -> Path | None:
+    requested = (FRONTEND_DIR / path).resolve()
+    if requested.is_file() and requested.is_relative_to(FRONTEND_DIR):
+        return requested
+    return None
+
+
+def frontend_index() -> FileResponse:
+    index_path = frontend_file("index.html")
+    if not index_path:
+        raise HTTPException(404, "Frontend index.html was not found.")
+    return FileResponse(index_path)
+
+
+@app.get("/", include_in_schema=False)
+def serve_frontend_root():
+    return frontend_index()
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def serve_frontend_path(full_path: str):
+    if full_path == "api" or full_path.startswith("api/"):
+        raise HTTPException(404, "API route not found.")
+
+    static_path = frontend_file(full_path)
+    if not static_path and Path(full_path).suffix:
+        static_path = frontend_file(Path(full_path).name)
+    if static_path:
+        return FileResponse(static_path)
+
+    # Browser-entered app URLs should load the single-page frontend instead of
+    # returning StaticFiles' default 404.
+    if not Path(full_path).suffix:
+        return frontend_index()
+
+    raise HTTPException(404, "Frontend asset not found.")
 
 
 if __name__ == "__main__":
