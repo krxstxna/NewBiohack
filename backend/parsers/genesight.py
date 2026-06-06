@@ -23,7 +23,7 @@ import pdfplumber
 import io
 
 
-# Known genes GenoSight tests for (used to anchor regex fallback)
+# Known genes GeneSight tests for (used to anchor regex fallback)
 KNOWN_GENES = [
     "CYP2D6", "CYP2C19", "CYP2C9", "CYP3A4", "CYP3A5",
     "CYP1A2", "CYP2B6", "COMT", "SLC6A4", "MTHFR",
