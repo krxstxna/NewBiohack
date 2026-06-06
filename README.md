@@ -60,20 +60,23 @@ GenoFit uses the **ChatGPT-style API** (`chat.completions`) through Nebius Token
 export NEBIUS_API_KEY=your-nebius-api-key
 ```
 
-Default GPT models on Nebius:
+GenoFit auto-picks the first available model from your Nebius project:
 
-| Use | Default `MODEL_ID` |
-|-----|---------------------|
-| Chat (GenomeCoach) | `openai/gpt-oss-120b` |
-| PDF extraction / literature search | `openai/gpt-oss-20b` |
+| Use | Preferred models (first match wins) |
+|-----|-------------------------------------|
+| Chat (GenomeCoach) | `openai/gpt-oss-120b`, `moonshotai/Kimi-K2.5`, … |
+| PDF extraction / literature search | `openai/gpt-oss-120b-fast`, `meta-llama/Meta-Llama-3.1-8B-Instruct`, … |
 
-Optional overrides (copy exact IDs from your Token Factory dashboard or `GET http://localhost:8000/api/models`):
+List what your key can use: `GET http://localhost:8000/api/models`
+
+Only set overrides if you want a specific model:
 
 ```bash
 export GENOFIT_CHAT_MODEL=openai/gpt-oss-120b
-export GENOFIT_LITERATURE_MODEL=openai/gpt-oss-20b
-export OPENAI_BASE_URL=https://api.tokenfactory.nebius.com/v1/
+export GENOFIT_LITERATURE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 ```
+
+If you previously set `GENOFIT_LITERATURE_MODEL=openai/gpt-oss-20b`, **unset it** — that model is not on Nebius.
 
 Add exports to your `~/.zshrc` or `~/.bashrc` to make them permanent.
 

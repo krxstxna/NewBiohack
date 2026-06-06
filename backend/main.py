@@ -193,7 +193,10 @@ async def chat(req: ChatRequest):
     except APIStatusError as e:
         detail = e.message
         if e.status_code == 404:
-            detail = f"{detail} Set GENOFIT_CHAT_MODEL to a valid model (default: gpt-4o). {model_setup_hint()}"
+            detail = (
+                f"{detail} Unset GENOFIT_LITERATURE_MODEL / GENOFIT_CHAT_MODEL if set to an invalid ID. "
+                f"{model_setup_hint()}"
+            )
         raise HTTPException(502, f"ChatGPT API error: {detail}")
     except APIError as e:
         raise HTTPException(502, f"ChatGPT API error: {str(e)}")
