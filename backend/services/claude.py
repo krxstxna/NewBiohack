@@ -27,6 +27,7 @@ GENOMECOACH_PROMPT = """You are GenomeCoach, an expert translational sports-heal
 3. Call the literature_search tool for each significant gene variant, abnormal lab, or wearable pattern before writing recommendations.
 4. Produce actionable recovery, training, and nutrition guidance tailored to the archetype and this specific person.
 5. Explain genetics and wearable links in plain language a non-scientist athlete can understand in under 60 seconds of reading.
+6. Structure all output into exactly FOUR app pages: your_story, train, fuel, rest_recovery. Each page must synthesize genetics, labs, wearables, and profile data relevant to that domain — never silo by data type alone.
 
 ## Archetype definitions (use these names only)
 
@@ -45,49 +46,103 @@ Score each archetype 0–100. Primary = highest score. Secondary = 2nd and 3rd i
 
 ## Cross-domain connection rules (mandatory)
 
-For each connection you surface, reason through:
-GENE/LAB signal → expected physiology → WEARABLE metric that should reflect it → does this user's data confirm or contradict?
+For each connection you surface, use this format internally:
+- GENE/LAB signal → expected physiology → WEARABLE metric that should reflect it → does this user's data confirm or contradict?
 
-You must actively look for:
-- MTHFR + homocysteine ↑ → impaired methylation → low energy + poor recovery → resting HR trend + HRV rebound days
-- COMT Val/Val → prolonged catecholamine clearance → elevated resting HR + difficulty downshifting → sleep HR + morning HRV
-- CYP2D6 ultrarapid → rapid drug/supplement metabolism → caffeine timing vs sleep latency from wearable
-- SLC6A4 S/S + low REM → serotonin regulation → performance variance → sleep stages vs next-day HRV/readiness
-- IL-6 variants + CRP ↑ → systemic inflammation → SpO2 dips, elevated overnight HR → overreaching signals
-- ADRB2 → beta-2 receptor sensitivity → HR overshoot on intervals → interval HR peaks vs recovery HR at 60s/120s
+Examples you must look for:
+- MTHFR + homocysteine ↑ → impaired methylation → low energy + poor recovery → check resting HR trend + HRV rebound days
+- COMT Val/Val → prolonged catecholamine clearance → elevated resting HR + difficulty downshifting → check sleep HR + morning HRV
+- CYP2D6 ultrarapid → rapid drug/supplement metabolism → check caffeine timing vs sleep latency from wearable
+- SLC6A4 S/S + low REM → serotonin regulation → performance variance → correlate sleep stages with next-day HRV/training readiness
+- IL-6 variants + CRP ↑ → systemic inflammation → SpO2 dips, elevated overnight HR → correlate with overreaching signals
+- ADRB2 → beta-2 receptor sensitivity → HR overshoot on intervals → correlate interval HR peaks vs recovery HR at 60s/120s
 
 If wearable data contradicts genetic expectation, say so explicitly and hypothesize why (acclimatization, medication, data quality, recent illness).
 
-## Recommendation rules
+## Four-page output rules
 
-- Recovery: 3–5 tips. Sleep, HRV-guided rest, stress downregulation, active recovery. Reference archetype.
-- Training: 3–5 tips. Periodization, intensity caps, deload triggers tied to wearable thresholds. Never prescribe dangerous volumes.
-- Nutrition: 3–5 tips. Micronutrients tied to genetics (e.g. methylfolate for MTHFR, omega-3 for Surge), timing, hydration.
-- Each tip: one sentence "what", one sentence "why" linked to their data, optional "watch for" wearable sign.
+### your_story (Your Story page)
+- Include full archetype block (primary, secondary, scores, confidence, narrative, matching_markers).
+- Include plain_explanation (headline, body ≤120 words, analogy).
+- Include ALL cross-domain connections (3–5) and literature citations (3–6).
+- Include data_at_a_glance: top genetics, labs, and wearable metrics summarizing the whole profile.
+
+### train (Train page)
+- Hero summary tied to archetype + wearable performance data.
+- data_insights: relevant genetics, labs, and wearable metrics for training only.
+- 3–5 training tips. Periodization, intensity caps, deload triggers tied to wearable thresholds. Never prescribe dangerous volumes.
+- this_week_focus: single prioritized training action.
+- 1–2 train-specific connections inline.
+
+### fuel (Fuel page)
+- Hero summary tied to nutrition/metabolism genetics and labs.
+- data_insights: MTHFR, CYP variants, B12, folate, ferritin, vitamin D, homocysteine, user meds/supplements.
+- 3–5 nutrition tips. Micronutrients tied to genetics (e.g. methylfolate for MTHFR, omega-3 for Surge), timing, hydration.
+- stack_notes: per med/supplement metabolism note + 2–3 suggested additions. Never advise stopping prescriptions.
+- 1–2 fuel-specific connections inline.
+
+### rest_recovery (Rest & Recovery page)
+- Hero: recovery score + sleep score from wearable when available.
+- data_insights: sleep stages, HRV, resting HR, SpO2, SLC6A4/COMT genetics, CRP/cortisol if relevant.
+- sleep_tips: 3–4 tips (bedtime, REM, wind-down, caffeine cutoff) + tonight action line.
+- recovery_tips: 3–5 tips (HRV-guided rest, stress downregulation, active recovery). Do not duplicate sleep hygiene.
+- 1–2 rest-specific connections inline.
+
+### All tips format
+- Each tip: title, one sentence "what", one sentence "why" linked to their data, optional "watch_for" wearable sign, data_sources array.
 
 ## Tone and safety
 
 - Confident but humble. Use "your data suggests" not "you have."
 - Never diagnose disease. Frame labs as "markers to discuss with your clinician."
-- Flag critical labs (homocysteine >15, CRP >10, ferritin extremes) for physician follow-up.
+- Flag critical labs (homocysteine >15, CRP >10, ferritin extremes) in flags array for physician follow-up.
 - Do not recommend stopping or changing prescribed medications.
 - Include disclaimer: educational only, not medical advice.
 
 ## Output
 
-Respond ONLY with valid JSON matching the provided schema. No markdown fences, no preamble.
+Respond ONLY with valid JSON matching the provided schema. Top-level keys: archetype, your_story, train, fuel, rest_recovery, flags, disclaimer. No markdown fences, no preamble.
 
 ## JSON schema
 
 {
-  "archetype_primary": {"id": "forge", "name": "Forge", "score": 0, "confidence": "high|medium|low"},
-  "archetype_secondary": [{"id": "drift", "name": "Drift", "score": 0}],
-  "archetype_scores": {"forge": 0, "drift": 0, "volt": 0, "titan": 0, "blitz": 0, "pulse": 0, "surge": 0, "prime": 0},
-  "connections": [{"title": "string", "analysis": "string"}],
-  "recovery": [{"what": "string", "why": "string", "watch_for": "string"}],
-  "training": [{"what": "string", "why": "string", "watch_for": "string"}],
-  "nutrition": [{"what": "string", "why": "string", "watch_for": "string"}],
-  "reply": "Plain-language summary for the athlete (100-150 words max unless user asks for detail)",
+  "archetype": {
+    "primary": {"id": "forge", "name": "Forge", "score": 0, "confidence": "high|medium|low"},
+    "secondary": [{"id": "drift", "name": "Drift", "score": 0}],
+    "scores": {"forge": 0, "drift": 0, "volt": 0, "titan": 0, "blitz": 0, "pulse": 0, "surge": 0, "prime": 0},
+    "narrative": "string",
+    "matching_markers": ["string"]
+  },
+  "your_story": {
+    "plain_explanation": {"headline": "string", "body": "string", "analogy": "string"},
+    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}],
+    "literature_citations": [{"topic": "string", "summary": "string"}],
+    "data_at_a_glance": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"]}
+  },
+  "train": {
+    "hero_summary": "string",
+    "data_insights": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"]},
+    "tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
+    "this_week_focus": "string",
+    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}]
+  },
+  "fuel": {
+    "hero_summary": "string",
+    "data_insights": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"], "medications": ["string"]},
+    "tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
+    "stack_notes": [{"item": "string", "note": "string"}],
+    "suggested_additions": ["string"],
+    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}]
+  },
+  "rest_recovery": {
+    "hero": {"recovery_score": "string", "sleep_score": "string", "summary": "string"},
+    "data_insights": {"genetics": ["string"], "labs": ["string"], "wearables": ["string"]},
+    "sleep_tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
+    "recovery_tips": [{"title": "string", "what": "string", "why": "string", "watch_for": "string", "data_sources": ["string"]}],
+    "tonight_action": "string",
+    "connections": [{"title": "string", "analysis": "string", "data_sources": ["string"]}]
+  },
+  "flags": [{"marker": "string", "note": "string"}],
   "disclaimer": "Educational only, not medical advice."
 }"""
 
@@ -267,19 +322,30 @@ def extract_json_dict(raw: str) -> dict | None:
 
 
 def _format_tip(tip: dict) -> str:
-    parts = [tip.get("what", "")]
+    parts = []
+    if tip.get("title"):
+        parts.append(f"<strong>{tip['title']}</strong>")
+    if tip.get("what"):
+        parts.append(tip["what"])
     if tip.get("why"):
         parts.append(tip["why"])
     if tip.get("watch_for"):
         parts.append(f"Watch for: {tip['watch_for']}")
-    return " — ".join(p for p in parts if p)
+    return " — ".join(parts) if parts else ""
+
+
+def _format_connection(c: dict) -> str:
+    title = c.get("title", "Connection")
+    analysis = c.get("analysis", "")
+    return f"• <strong>{title}</strong>: {analysis}"
 
 
 def format_coach_response(data: dict) -> str:
     """Turn structured GenomeCoach JSON into readable chat HTML."""
     sections = []
 
-    primary = data.get("archetype_primary") or {}
+    arch = data.get("archetype") or {}
+    primary = arch.get("primary") or data.get("archetype_primary") or {}
     if primary.get("name"):
         conf = primary.get("confidence", "")
         score = primary.get("score", "")
@@ -291,30 +357,53 @@ def format_coach_response(data: dict) -> str:
             line += ")"
         sections.append(line)
 
-    secondary = data.get("archetype_secondary") or []
+    secondary = arch.get("secondary") or data.get("archetype_secondary") or []
     if secondary:
         names = ", ".join(s.get("name", s.get("id", "")) for s in secondary if s)
         if names:
             sections.append(f"<strong>Secondary:</strong> {names}")
 
-    reply = data.get("reply", "")
-    if reply:
-        sections.append(reply)
+    story = data.get("your_story") or {}
+    plain = story.get("plain_explanation") or {}
+    if plain.get("headline"):
+        sections.append(f"<strong>{plain['headline']}</strong>")
+    if plain.get("body"):
+        sections.append(plain["body"])
+    elif data.get("reply"):
+        sections.append(data["reply"])
 
-    connections = data.get("connections") or []
+    connections = story.get("connections") or data.get("connections") or []
     if connections:
-        items = []
-        for c in connections[:4]:
-            title = c.get("title", "Connection")
-            analysis = c.get("analysis", "")
-            items.append(f"• <strong>{title}</strong>: {analysis}")
+        items = [_format_connection(c) for c in connections[:5]]
         sections.append("<strong>Key connections</strong><br>" + "<br>".join(items))
 
-    for label, key in [("Recovery", "recovery"), ("Training", "training"), ("Nutrition", "nutrition")]:
-        tips = data.get(key) or []
+    train = data.get("train") or {}
+    if train.get("this_week_focus"):
+        sections.append(f"<strong>This week:</strong> {train['this_week_focus']}")
+
+    for label, page_key, tip_key in [
+        ("Training", "train", "tips"),
+        ("Fuel", "fuel", "tips"),
+        ("Rest & Recovery", "rest_recovery", "recovery_tips"),
+    ]:
+        page = data.get(page_key) or {}
+        tips = page.get(tip_key) or page.get("sleep_tips") or data.get(tip_key.replace("_tips", "")) or []
+        if page_key == "rest_recovery" and not tips:
+            tips = (page.get("sleep_tips") or []) + (page.get("recovery_tips") or [])
+        if not tips and page_key == "train":
+            tips = data.get("training") or []
+        if not tips and page_key == "fuel":
+            tips = data.get("nutrition") or []
+        if not tips and page_key == "rest_recovery":
+            tips = data.get("recovery") or []
         if tips:
-            items = [f"• {_format_tip(t)}" for t in tips[:5]]
+            items = [f"• {_format_tip(t)}" for t in tips[:5] if _format_tip(t)]
             sections.append(f"<strong>{label}</strong><br>" + "<br>".join(items))
+
+    flags = data.get("flags") or []
+    if flags:
+        flag_items = [f"• {f.get('marker', 'Flag')}: {f.get('note', '')}" for f in flags[:3]]
+        sections.append("<strong>Discuss with clinician</strong><br>" + "<br>".join(flag_items))
 
     disclaimer = data.get("disclaimer") or "Educational only, not medical advice."
     sections.append(f"<em>{disclaimer}</em>")
@@ -336,7 +425,7 @@ async def _run_coach_completion(messages: list, *, use_tools: bool = True) -> st
     raw = ""
     create_kwargs: dict = {
         "model": get_chat_model(),
-        "max_tokens": 4096,
+        "max_tokens": 8192,
         "messages": messages,
     }
     if not use_tools:
@@ -381,10 +470,10 @@ async def _run_coach_completion(messages: list, *, use_tools: bool = True) -> st
 
 
 ANALYZE_PROFILE_MESSAGE = (
-    "Analyze my complete uploaded profile now using the lab, genetic, and wearable data "
-    "in the system prompt. Classify my primary and secondary archetypes, list at least "
-    "three cross-domain connections (genetics + labs + wearables), and include recovery, "
-    "training, and nutrition arrays. Output a single JSON object only — no markdown, no preamble."
+    "Build my full GenomeCoach dashboard now using all uploaded data in the system prompt. "
+    "Call literature_search for each significant gene, lab marker, and wearable pattern, then "
+    "output ONE JSON object with keys: archetype, your_story, train, fuel, rest_recovery, flags, "
+    "disclaimer. Populate all four app pages completely. JSON only — no markdown fences."
 )
 
 
@@ -395,7 +484,7 @@ async def analyze_profile(genes: dict, metrics: dict, lab_reports: list) -> dict
         {"role": "system", "content": system},
         {"role": "user", "content": ANALYZE_PROFILE_MESSAGE},
     ]
-    raw = await _run_coach_completion(messages, use_tools=False)
+    raw = await _run_coach_completion(messages, use_tools=True)
     structured = extract_json_dict(raw)
     if structured:
         return structured
@@ -404,9 +493,20 @@ async def analyze_profile(genes: dict, metrics: dict, lab_reports: list) -> dict
         {
             "role": "user",
             "content": (
-                "Your last answer was not valid JSON. Respond with ONLY one JSON object "
-                "matching the schema in the system prompt. No markdown fences or extra text."
+                "Output the complete dashboard JSON now (archetype, your_story, train, fuel, "
+                "rest_recovery, flags, disclaimer). Valid JSON only — no markdown or preamble."
             ),
+        }
+    )
+    raw = await _run_coach_completion(messages, use_tools=False)
+    structured = extract_json_dict(raw)
+    if structured:
+        return structured
+
+    messages.append(
+        {
+            "role": "user",
+            "content": "Respond with ONLY one JSON object matching the schema. No other text.",
         }
     )
     raw = await _run_coach_completion(messages, use_tools=False)

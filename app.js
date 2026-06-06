@@ -24,27 +24,79 @@ const DASHBOARD_SECTIONS = {
   training: {
     title: "Training",
     subtitle: "Personalized Training Recs",
-    profileKey: "training",
+    pageKey: "train",
     amaPrompt: "Tell me more about my training recommendations based on my genetics, labs, and wearables.",
   },
   fuel: {
     title: "Fuel",
     subtitle: "Personalized Nutrition Recs",
-    profileKey: "nutrition",
+    pageKey: "fuel",
     amaPrompt: "Tell me more about my nutrition and fuel recommendations based on my data.",
   },
   recovery: {
     title: "Rest + Recovery",
     subtitle: "Personalized Recovery Recs",
-    profileKey: "recovery",
+    pageKey: "rest_recovery",
     amaPrompt: "Tell me more about my recovery and sleep recommendations.",
   },
   story: {
     title: "Your Story",
     subtitle: "Archetype & cross-domain correlations",
+    pageKey: "your_story",
     amaPrompt: "Explain my archetype and how my genes connect to my wearable and lab data.",
   },
 };
+
+function getPrimaryArchetype(profile) {
+  if (!profile) return {};
+  return profile.archetype?.primary || profile.archetype_primary || {};
+}
+
+function getSecondaryArchetypes(profile) {
+  if (!profile) return [];
+  return profile.archetype?.secondary || profile.archetype_secondary || [];
+}
+
+function appendListItem(list, text, html = false) {
+  const li = document.createElement("li");
+  if (html) li.innerHTML = text;
+  else li.textContent = text;
+  list.appendChild(li);
+}
+
+function appendTipItems(list, tips) {
+  for (const tip of tips || []) {
+    const li = document.createElement("li");
+    if (tip.title) {
+      const strong = document.createElement("strong");
+      strong.textContent = tip.title;
+      li.appendChild(strong);
+      li.appendChild(document.createTextNode(" "));
+    }
+    const body = formatProfileTip(tip);
+    if (body) li.appendChild(document.createTextNode(body));
+    if (li.textContent?.trim()) list.appendChild(li);
+  }
+}
+
+function appendConnections(list, connections) {
+  for (const conn of connections || []) {
+    if (conn.title) {
+      appendListItem(list, `<strong>${escapeHtml(conn.title)}</strong> ${escapeHtml(conn.analysis || "")}`, true);
+    } else if (conn.analysis) {
+      appendListItem(list, conn.analysis);
+    }
+  }
+}
+
+function appendDataInsights(list, insights) {
+  if (!insights || typeof insights !== "object") return;
+  for (const [domain, items] of Object.entries(insights)) {
+    for (const item of items || []) {
+      appendListItem(list, `${domain}: ${item}`);
+    }
+  }
+}
 
 const onboardingEl = document.getElementById("onboarding");
 const profileDashboardEl = document.getElementById("profile-dashboard");
@@ -116,9 +168,10 @@ function finishOnboarding() {
 }
 
 function formatProfileTip(tip) {
-  let text = tip?.what || "";
-  if (tip?.why) text += ` — ${tip.why}`;
-  if (tip?.watch_for) text += ` (Watch: ${tip.watch_for})`;
+  if (!tip) return "";
+  let text = tip.what || "";
+  if (tip.why) text += (text ? " — " : "") + tip.why;
+  if (tip.watch_for) text += ` (Watch: ${tip.watch_for})`;
   return text;
 }
 
@@ -150,52 +203,71 @@ function openDashboardDetail(sectionId) {
   const list = document.getElementById("detail-list");
   list.innerHTML = "";
 
+  const page = cachedProfile?.[cfg.pageKey] || {};
+  let subtitle = cfg.subtitle;
+
   if (sectionId === "story") {
-    const primary = cachedProfile?.archetype_primary || {};
+    const primary = getPrimaryArchetype(cachedProfile);
     if (primary.name) {
-      const li = document.createElement("li");
       const score = primary.score != null ? ` (${primary.score}/100)` : "";
-      li.innerHTML = `<strong>Archetype: ${escapeHtml(primary.name)}${score}</strong>`;
-      list.appendChild(li);
+      appendListItem(list, `Archetype: ${primary.name}${score}`, false);
+      appendListItem(list, primary.confidence ? `${primary.confidence} confidence` : "", false);
     }
-    for (const sec of cachedProfile?.archetype_secondary || []) {
+    for (const sec of getSecondaryArchetypes(cachedProfile)) {
       if (!sec?.name) continue;
-      const li = document.createElement("li");
-      li.textContent = `Secondary: ${sec.name}${sec.score != null ? ` · ${sec.score}` : ""}`;
-      list.appendChild(li);
+      appendListItem(list, `Secondary: ${sec.name}${sec.score != null ? ` · ${sec.score}` : ""}`);
     }
-    if (cachedProfile?.reply) {
-      const li = document.createElement("li");
-      li.textContent = cachedProfile.reply;
-      list.appendChild(li);
+    if (cachedProfile?.archetype?.narrative) {
+      appendListItem(list, cachedProfile.archetype.narrative);
     }
-    for (const conn of cachedProfile?.connections || []) {
-      const li = document.createElement("li");
-      if (conn.title) {
-        li.innerHTML = `<strong>${escapeHtml(conn.title)}</strong> ${escapeHtml(conn.analysis || "")}`;
-      } else {
-        li.textContent = conn.analysis || "";
-      }
-      list.appendChild(li);
+    const plain = page.plain_explanation || {};
+    if (plain.headline) appendListItem(list, plain.headline);
+    if (plain.body) appendListItem(list, plain.body);
+    if (plain.analogy) appendListItem(list, `Analogy: ${plain.analogy}`);
+    appendConnections(list, page.connections);
+    appendDataInsights(list, page.data_at_a_glance);
+    for (const cite of page.literature_citations || []) {
+      appendListItem(list, cite.summary ? `${cite.topic}: ${cite.summary}` : cite.topic || "");
     }
-    if (!list.children.length) {
-      const li = document.createElement("li");
-      li.textContent = "Your story will appear after analysis completes.";
-      list.appendChild(li);
+  } else if (sectionId === "training") {
+    if (page.hero_summary) appendListItem(list, page.hero_summary);
+    appendDataInsights(list, page.data_insights);
+    appendTipItems(list, page.tips || cachedProfile?.training);
+    if (page.this_week_focus) appendListItem(list, `This week: ${page.this_week_focus}`);
+    appendConnections(list, page.connections);
+  } else if (sectionId === "fuel") {
+    if (page.hero_summary) appendListItem(list, page.hero_summary);
+    appendDataInsights(list, page.data_insights);
+    appendTipItems(list, page.tips || cachedProfile?.nutrition);
+    for (const note of page.stack_notes || []) {
+      appendListItem(list, note.note ? `${note.item}: ${note.note}` : note.item || "");
     }
+    for (const add of page.suggested_additions || []) {
+      appendListItem(list, `Consider: ${add}`);
+    }
+    appendConnections(list, page.connections);
+  } else if (sectionId === "recovery") {
+    const hero = page.hero || {};
+    if (hero.summary) appendListItem(list, hero.summary);
+    if (hero.recovery_score || hero.sleep_score) {
+      appendListItem(list, `Recovery: ${hero.recovery_score || "—"} · Sleep: ${hero.sleep_score || "—"}`);
+    }
+    appendDataInsights(list, page.data_insights);
+    appendTipItems(list, page.sleep_tips);
+    appendTipItems(list, page.recovery_tips || cachedProfile?.recovery);
+    if (page.tonight_action) appendListItem(list, `Tonight: ${page.tonight_action}`);
+    appendConnections(list, page.connections);
+  }
+
+  if (subtitle && page.hero_summary && sectionId !== "story") {
+    subtitleEl.textContent = page.hero_summary;
   } else {
-    const tips = cachedProfile?.[cfg.profileKey] || [];
-    if (!tips.length) {
-      const li = document.createElement("li");
-      li.textContent = "e.g. recommendations based on your genes, labs, and wearables";
-      list.appendChild(li);
-    } else {
-      for (const tip of tips) {
-        const li = document.createElement("li");
-        li.textContent = formatProfileTip(tip);
-        list.appendChild(li);
-      }
-    }
+    subtitleEl.textContent = subtitle || "";
+  }
+  subtitleEl.style.display = subtitleEl.textContent ? "block" : "none";
+
+  if (!list.children.length) {
+    appendListItem(list, "e.g. recommendations based on your genes, labs, and wearables");
   }
 
   document.getElementById("detail-ama").dataset.prompt = cfg.amaPrompt;
@@ -209,7 +281,7 @@ function closeDashboardDetail() {
 function renderProfileDashboard(profile) {
   cachedProfile = profile;
 
-  const primary = profile?.archetype_primary || {};
+  const primary = getPrimaryArchetype(profile);
   const archetypeId = (primary.id || "").toLowerCase();
   const avatar = document.getElementById("dashboard-avatar");
   avatar.className = "hub-avatar";
@@ -284,7 +356,7 @@ document.getElementById("dashboard-continue")?.addEventListener("click", finishO
 function enterWorkspace() {
   document.getElementById("sidebar-name").textContent = userName || "there";
   if (!messagesEl.children.length) {
-    const archetype = cachedProfile?.archetype_primary?.name;
+    const archetype = getPrimaryArchetype(cachedProfile).name;
     const intro = archetype
       ? `You're classified as <strong>${escapeHtml(archetype)}</strong>. Ask me to go deeper on any correlation or recommendation.`
       : `Hi ${escapeHtml(userName || "there")} — ask me anything about your lab results, genetics, and wearable data. ` +
