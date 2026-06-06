@@ -123,7 +123,7 @@ async def upload_genesight_batch(files: list[UploadFile] = File(...)):
     except Exception as e:
         raise HTTPException(500, f"Lab result upload failed: {str(e)}")
 
-    processed = [f["filename"] for f in pdf_files if f["filename"] not in {x["filename"] for x in failures}]
+    processed = [name for name, _ in pdf_files if name not in {x["filename"] for x in failures}]
     if not new_genes and failures:
         detail = failures[0]["error"] if len(failures) == 1 else f"{len(failures)} files could not be parsed."
         raise HTTPException(422, detail)
