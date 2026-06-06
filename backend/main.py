@@ -11,13 +11,16 @@ from services.claude import chat_with_context
 
 app = FastAPI(title="GenoSight API")
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+allow_origin_regex=".*",
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # In-memory session state (one user, local dev)
 session = {
     "genes": {},
