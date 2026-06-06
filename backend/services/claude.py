@@ -27,7 +27,7 @@ GENOMECOACH_PROMPT = """You are GenomeCoach, an expert translational sports-heal
 ## Your job
 1. Classify the user into exactly ONE primary archetype and up to TWO secondary archetypes from the list below.
 2. Cross-reference genetics, labs, and wearables — every major claim must cite at least two data domains when data exists.
-3. Ground recommendations in established pharmacogenomics and sports medicine literature (no external search tool in this session — use your training knowledge).
+3. Call the literature_search tool for each significant gene variant, abnormal lab, or wearable pattern before writing recommendations.
 4. Produce actionable recovery, training, and nutrition guidance tailored to the archetype and this specific person.
 5. Explain genetics and wearable links in plain language a non-scientist athlete can understand in under 60 seconds of reading.
 
@@ -78,7 +78,9 @@ If wearable data contradicts genetic expectation, say so explicitly and hypothes
 
 ## Output
 
-Respond ONLY with valid JSON matching this schema. No markdown fences, no preamble.
+Respond ONLY with valid JSON matching the provided schema. No markdown fences, no preamble.
+
+## JSON schema
 
 {
   "archetype_primary": {"id": "forge", "name": "Forge", "score": 0, "confidence": "high|medium|low"},
@@ -91,6 +93,41 @@ Respond ONLY with valid JSON matching this schema. No markdown fences, no preamb
   "reply": "Plain-language summary for the athlete (100-150 words max unless user asks for detail)",
   "disclaimer": "Educational only, not medical advice."
 }"""
+
+LITERATURE_SEARCH_TOOL = {
+    "name": "literature_search",
+    "description": (
+        "Look up pharmacogenomics, sports medicine, and recovery literature for a "
+        "gene variant, abnormal lab marker, or wearable pattern before making recommendations."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Gene variant, lab marker, or wearable pattern to research",
+            }
+        },
+        "required": ["query"],
+    },
+}
+
+LITERATURE_MODEL = os.environ.get("GENOFIT_LITERATURE_MODEL", "claude-haiku-4-5-20251001")
+
+
+async def run_literature_search(client: anthropic.AsyncAnthropic, query: str) -> str:
+    response = await client.messages.create(
+        model=LITERATURE_MODEL,
+        max_tokens=500,
+        system=(
+            "You are a pharmacogenomics and sports medicine literature assistant. "
+            "Summarize 2–3 relevant peer-reviewed findings for the query. "
+            "Include gene/marker names, expected physiology, and practical athlete implications. "
+            "Be concise and cite study types (e.g. meta-analysis, RCT) when known."
+        ),
+        messages=[{"role": "user", "content": query}],
+    )
+    return response.content[0].text
 
 
 def build_system_prompt(genes: dict, metrics: dict, lab_reports: list) -> str:
@@ -259,16 +296,50 @@ async def chat_with_context(
     trimmed_history = history[-(MAX_HISTORY_TURNS * 2):]
     messages = trimmed_history + [{"role": "user", "content": message}]
 
-    response = await client.messages.create(
-        model=CHAT_MODEL,
-        max_tokens=3000,
-        system=build_system_prompt(genes, metrics, lab_reports),
-        messages=messages,
-    )
+    system = build_system_prompt(genes, metrics, lab_reports)
+    raw = ""
 
-    raw = response.content[0].text
+    for _ in range(8):
+        response = await client.messages.create(
+            model=CHAT_MODEL,
+            max_tokens=3000,
+            system=system,
+            tools=[LITERATURE_SEARCH_TOOL],
+            messages=messages,
+        )
+
+        if response.stop_reason == "tool_use":
+            messages.append({"role": "assistant", "content": response.content})
+            tool_results = []
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                if block.name == "literature_search":
+                    query = block.input.get("query", "")
+                    result = await run_literature_search(client, query)
+                else:
+                    result = f"Unknown tool: {block.name}"
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    }
+                )
+            messages.append({"role": "user", "content": tool_results})
+            continue
+
+        for block in response.content:
+            if block.type == "text":
+                raw = block.text
+                break
+        break
+
     display_reply, structured = parse_coach_response(raw)
 
     # Store formatted reply in history so follow-up turns stay readable
-    updated_history = messages + [{"role": "assistant", "content": display_reply}]
+    updated_history = trimmed_history + [
+        {"role": "user", "content": message},
+        {"role": "assistant", "content": display_reply},
+    ]
     return display_reply, updated_history, structured
