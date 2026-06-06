@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>GenoFit</title>
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
   <div id="app">
@@ -90,38 +90,50 @@
 
     <!-- ── Profile dashboard (after wearables) ───────────────────── -->
     <div id="profile-dashboard" class="hidden">
-      <div class="dashboard-inner">
-        <header class="dashboard-hero">
-          <div class="dashboard-avatar-wrap">
-            <div class="dashboard-avatar" id="dashboard-avatar">
-              <span class="avatar-initials" id="avatar-initials">?</span>
-              <span class="avatar-ring"></span>
+      <!-- Hub: avatar + four blobs -->
+      <div id="dashboard-hub" class="dashboard-hub">
+        <h1 class="hub-greeting">Hi, <span id="dashboard-name">there</span></h1>
+
+        <div class="hub-stage" id="hub-stage">
+          <button type="button" class="hub-blob blob-tl" data-section="training" disabled>Training</button>
+          <button type="button" class="hub-blob blob-tr" data-section="fuel" disabled>Fuel</button>
+
+          <div class="hub-avatar-wrap">
+            <div class="hub-avatar" id="dashboard-avatar" aria-hidden="true">
+              <svg class="avatar-figure" viewBox="0 0 80 120" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <circle cx="40" cy="18" r="12"/>
+                <line x1="40" y1="30" x2="40" y2="68"/>
+                <line x1="40" y1="42" x2="18" y2="58"/>
+                <line x1="40" y1="42" x2="62" y2="58"/>
+                <line x1="40" y1="68" x2="22" y2="105"/>
+                <line x1="40" y1="68" x2="58" y2="105"/>
+              </svg>
             </div>
+            <p class="hub-archetype-badge hidden" id="hub-archetype-badge"></p>
           </div>
-          <div class="dashboard-hero-text">
-            <p class="dashboard-greeting">Hi, <span id="dashboard-name">there</span></p>
-            <p class="dashboard-archetype-label">Your GenomeCoach archetype</p>
-            <h1 class="dashboard-archetype-name" id="dashboard-archetype-name">Analyzing…</h1>
-            <p class="dashboard-archetype-meta" id="dashboard-archetype-meta"></p>
-            <div class="dashboard-secondary" id="dashboard-secondary"></div>
+
+          <button type="button" class="hub-blob blob-bl" data-section="recovery" disabled>Rest + Recovery</button>
+          <button type="button" class="hub-blob blob-br" data-section="story" disabled>Your Story</button>
+        </div>
+
+        <p class="hub-status" id="dashboard-status">Analyzing your profile…</p>
+        <button type="button" class="hub-skip wizard-link" id="dashboard-continue">Continue to chat</button>
+      </div>
+
+      <!-- Detail card (Fuel, Training, etc.) -->
+      <div id="dashboard-detail" class="dashboard-detail hidden">
+        <div class="detail-frame">
+          <button type="button" class="detail-back" id="detail-back" aria-label="Back to hub">←</button>
+          <div class="detail-card">
+            <h2 class="detail-title" id="detail-title">Fuel</h2>
+            <p class="detail-subtitle" id="detail-subtitle">Personalized Nutrition Recs</p>
+            <p class="detail-based">
+              <span class="detail-list-icon" aria-hidden="true">☰</span>
+              (based on your info)
+            </p>
+            <ul class="detail-list" id="detail-list"></ul>
+            <button type="button" class="detail-ama" id="detail-ama">AMA / add info</button>
           </div>
-        </header>
-
-        <p class="dashboard-summary" id="dashboard-summary"></p>
-
-        <section class="dashboard-section">
-          <h2 class="dashboard-section-title">Cross-domain correlations</h2>
-          <div class="dashboard-correlations" id="dashboard-correlations"></div>
-        </section>
-
-        <section class="dashboard-section dashboard-metrics-section">
-          <h2 class="dashboard-section-title">Wearable snapshot</h2>
-          <div class="dashboard-metrics" id="dashboard-metrics"></div>
-        </section>
-
-        <div class="dashboard-actions">
-          <button class="wizard-btn" id="dashboard-continue" type="button">Continue to chat</button>
-          <p class="dashboard-disclaimer" id="dashboard-disclaimer"></p>
         </div>
       </div>
     </div>
@@ -184,6 +196,6 @@
 
   </div>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

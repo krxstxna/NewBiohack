@@ -20,6 +20,32 @@ let cachedMetrics = null;
 
 const ARCHETYPE_IDS = ["forge", "drift", "volt", "titan", "blitz", "pulse", "surge", "prime"];
 
+const DASHBOARD_SECTIONS = {
+  training: {
+    title: "Training",
+    subtitle: "Personalized Training Recs",
+    profileKey: "training",
+    amaPrompt: "Tell me more about my training recommendations based on my genetics, labs, and wearables.",
+  },
+  fuel: {
+    title: "Fuel",
+    subtitle: "Personalized Nutrition Recs",
+    profileKey: "nutrition",
+    amaPrompt: "Tell me more about my nutrition and fuel recommendations based on my data.",
+  },
+  recovery: {
+    title: "Rest + Recovery",
+    subtitle: "Personalized Recovery Recs",
+    profileKey: "recovery",
+    amaPrompt: "Tell me more about my recovery and sleep recommendations.",
+  },
+  story: {
+    title: "Your Story",
+    subtitle: "Archetype & cross-domain correlations",
+    amaPrompt: "Explain my archetype and how my genes connect to my wearable and lab data.",
+  },
+};
+
 const onboardingEl = document.getElementById("onboarding");
 const profileDashboardEl = document.getElementById("profile-dashboard");
 const workspaceEl  = document.getElementById("workspace");
@@ -67,6 +93,8 @@ function goToWelcome() {
   setWizardUploadState("genesight", "idle", "");
   workspaceEl.classList.add("hidden");
   profileDashboardEl.classList.add("hidden");
+  document.getElementById("dashboard-detail")?.classList.add("hidden");
+  document.getElementById("dashboard-hub")?.classList.remove("hidden");
   onboardingEl.classList.remove("hidden");
   showStep(0);
 }
@@ -87,89 +115,118 @@ function finishOnboarding() {
   enterWorkspace();
 }
 
-function getInitials(name) {
-  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+function formatProfileTip(tip) {
+  let text = tip?.what || "";
+  if (tip?.why) text += ` — ${tip.why}`;
+  if (tip?.watch_for) text += ` (Watch: ${tip.watch_for})`;
+  return text;
 }
 
-function renderDashboardMetrics(metrics) {
-  const container = document.getElementById("dashboard-metrics");
-  container.innerHTML = "";
-  const LABELS = {
-    hrv:             m => [`HRV`, `${m.latest_ms ?? m.avg_ms} ms`],
-    resting_hr:      m => [`Resting HR`, `${m.latest_bpm ?? m.avg_bpm} bpm`],
-    spo2:            m => [`SpO2`, `${m.latest_pct ?? m.avg_pct}%`],
-    sleep:           m => [`Sleep`, `${m.avg_hours} hrs/night`],
-    steps:           m => [`Steps`, `${Math.round(m.avg_daily).toLocaleString()}/day`],
-    vo2_max:         m => [`VO2 Max`, `${m.latest} mL/kg/min`],
-    active_calories: m => [`Active cal`, `${Math.round(m.avg_daily_kcal)}/day`],
-  };
+function setHubStatus(message, isError = false) {
+  const status = document.getElementById("dashboard-status");
+  if (!status) return;
+  status.textContent = message || "";
+  status.classList.toggle("error", isError);
+}
 
-  for (const [key, fmt] of Object.entries(LABELS)) {
-    if (!metrics?.[key]) continue;
-    const [label, val] = fmt(metrics[key]);
-    const card = document.createElement("div");
-    card.className = "dashboard-metric-card";
-    card.innerHTML = `<span class="metric-label">${label}</span><span class="metric-val">${val}</span>`;
-    container.appendChild(card);
+function setHubBlobsEnabled(enabled) {
+  document.querySelectorAll(".hub-blob").forEach((btn) => {
+    btn.disabled = !enabled;
+  });
+}
+
+function openDashboardDetail(sectionId) {
+  const cfg = DASHBOARD_SECTIONS[sectionId];
+  if (!cfg) return;
+
+  document.getElementById("dashboard-hub").classList.add("hidden");
+  document.getElementById("dashboard-detail").classList.remove("hidden");
+
+  document.getElementById("detail-title").textContent = cfg.title;
+  const subtitleEl = document.getElementById("detail-subtitle");
+  subtitleEl.textContent = cfg.subtitle || "";
+  subtitleEl.style.display = cfg.subtitle ? "block" : "none";
+
+  const list = document.getElementById("detail-list");
+  list.innerHTML = "";
+
+  if (sectionId === "story") {
+    const primary = cachedProfile?.archetype_primary || {};
+    if (primary.name) {
+      const li = document.createElement("li");
+      const score = primary.score != null ? ` (${primary.score}/100)` : "";
+      li.innerHTML = `<strong>Archetype: ${escapeHtml(primary.name)}${score}</strong>`;
+      list.appendChild(li);
+    }
+    for (const sec of cachedProfile?.archetype_secondary || []) {
+      if (!sec?.name) continue;
+      const li = document.createElement("li");
+      li.textContent = `Secondary: ${sec.name}${sec.score != null ? ` · ${sec.score}` : ""}`;
+      list.appendChild(li);
+    }
+    if (cachedProfile?.reply) {
+      const li = document.createElement("li");
+      li.textContent = cachedProfile.reply;
+      list.appendChild(li);
+    }
+    for (const conn of cachedProfile?.connections || []) {
+      const li = document.createElement("li");
+      if (conn.title) {
+        li.innerHTML = `<strong>${escapeHtml(conn.title)}</strong> ${escapeHtml(conn.analysis || "")}`;
+      } else {
+        li.textContent = conn.analysis || "";
+      }
+      list.appendChild(li);
+    }
+    if (!list.children.length) {
+      const li = document.createElement("li");
+      li.textContent = "Your story will appear after analysis completes.";
+      list.appendChild(li);
+    }
+  } else {
+    const tips = cachedProfile?.[cfg.profileKey] || [];
+    if (!tips.length) {
+      const li = document.createElement("li");
+      li.textContent = "e.g. recommendations based on your genes, labs, and wearables";
+      list.appendChild(li);
+    } else {
+      for (const tip of tips) {
+        const li = document.createElement("li");
+        li.textContent = formatProfileTip(tip);
+        list.appendChild(li);
+      }
+    }
   }
+
+  document.getElementById("detail-ama").dataset.prompt = cfg.amaPrompt;
 }
 
-function renderProfileDashboard(profile, metrics) {
+function closeDashboardDetail() {
+  document.getElementById("dashboard-detail").classList.add("hidden");
+  document.getElementById("dashboard-hub").classList.remove("hidden");
+}
+
+function renderProfileDashboard(profile) {
   cachedProfile = profile;
-  cachedMetrics = metrics;
 
   const primary = profile?.archetype_primary || {};
-  const archetypeId = (primary.id || "prime").toLowerCase();
+  const archetypeId = (primary.id || "").toLowerCase();
   const avatar = document.getElementById("dashboard-avatar");
-  avatar.className = "dashboard-avatar";
+  avatar.className = "hub-avatar";
   if (ARCHETYPE_IDS.includes(archetypeId)) {
     avatar.classList.add(`archetype-${archetypeId}`);
   }
 
-  document.getElementById("avatar-initials").textContent = getInitials(userName);
-  document.getElementById("dashboard-name").textContent = userName || "there";
-  document.getElementById("dashboard-archetype-name").textContent =
-    primary.name || "Your profile";
-  document.getElementById("dashboard-archetype-meta").textContent =
-    primary.score != null
-      ? `${primary.score}/100 · ${primary.confidence || "medium"} confidence`
-      : "";
-
-  const secondaryEl = document.getElementById("dashboard-secondary");
-  secondaryEl.innerHTML = "";
-  for (const sec of profile?.archetype_secondary || []) {
-    if (!sec?.name) continue;
-    const chip = document.createElement("span");
-    chip.className = "archetype-chip";
-    chip.textContent = sec.score != null ? `${sec.name} · ${sec.score}` : sec.name;
-    secondaryEl.appendChild(chip);
-  }
-
-  document.getElementById("dashboard-summary").textContent = profile?.reply || "";
-
-  const corrEl = document.getElementById("dashboard-correlations");
-  corrEl.innerHTML = "";
-  const connections = profile?.connections || [];
-  if (!connections.length) {
-    corrEl.innerHTML = `<p class="dashboard-summary" style="margin:0">No cross-domain correlations returned yet.</p>`;
+  const badge = document.getElementById("hub-archetype-badge");
+  if (primary.name) {
+    badge.textContent = primary.name;
+    badge.classList.remove("hidden");
   } else {
-    for (const conn of connections) {
-      const card = document.createElement("article");
-      card.className = "correlation-card";
-      card.innerHTML = `
-        <h3>${escapeHtml(conn.title || "Connection")}</h3>
-        <p>${escapeHtml(conn.analysis || "")}</p>
-      `;
-      corrEl.appendChild(card);
-    }
+    badge.classList.add("hidden");
   }
 
-  renderDashboardMetrics(metrics || {});
-  document.getElementById("dashboard-disclaimer").textContent =
-    profile?.disclaimer || "Educational only, not medical advice.";
+  setHubBlobsEnabled(true);
+  setHubStatus("Tap a section to explore your profile");
 }
 
 async function showProfileDashboard(metrics) {
@@ -177,41 +234,50 @@ async function showProfileDashboard(metrics) {
   onboardingEl.classList.add("hidden");
   workspaceEl.classList.add("hidden");
   profileDashboardEl.classList.remove("hidden");
+  document.getElementById("dashboard-hub").classList.remove("hidden");
+  document.getElementById("dashboard-detail").classList.add("hidden");
 
   document.getElementById("dashboard-name").textContent = userName || "there";
-  document.getElementById("avatar-initials").textContent = getInitials(userName);
-  document.getElementById("dashboard-archetype-name").textContent = "Analyzing your profile…";
-  document.getElementById("dashboard-archetype-meta").textContent = "";
-  document.getElementById("dashboard-summary").textContent =
-    "GenomeCoach is connecting your genetics, labs, and wearable data…";
-  document.getElementById("dashboard-correlations").innerHTML = "";
-  document.getElementById("dashboard-secondary").innerHTML = "";
-  renderDashboardMetrics(metrics || {});
+  setHubBlobsEnabled(false);
+  setHubStatus("Analyzing your profile…");
+  document.getElementById("hub-archetype-badge").classList.add("hidden");
+  cachedMetrics = metrics;
 
   try {
     const res = await fetch(`${API}/profile/analyze`, { method: "POST" });
     const data = await parseApiResponse(res);
     if (!res.ok) throw new Error(formatApiError(data, res.status));
-    renderProfileDashboard(data.profile, data.metrics || metrics);
+    renderProfileDashboard(data.profile);
   } catch (err) {
-    document.getElementById("dashboard-archetype-name").textContent = "Profile ready";
-    document.getElementById("dashboard-archetype-meta").textContent = "Analysis unavailable";
-    document.getElementById("dashboard-summary").textContent =
-      `Wearable data loaded. ${formatFetchError(err)}`;
-    renderDashboardMetrics(metrics || {});
-    const actions = document.querySelector(".dashboard-actions");
-    if (actions && !document.getElementById("dashboard-retry")) {
+    setHubBlobsEnabled(true);
+    setHubStatus(formatFetchError(err), true);
+    const hub = document.getElementById("dashboard-hub");
+    if (hub && !document.getElementById("dashboard-retry")) {
       const retry = document.createElement("button");
       retry.id = "dashboard-retry";
       retry.className = "wizard-link";
       retry.type = "button";
       retry.textContent = "Retry analysis";
-      retry.style.marginTop = "12px";
+      retry.style.marginTop = "8px";
       retry.onclick = () => showProfileDashboard(metrics);
-      actions.insertBefore(retry, document.getElementById("dashboard-continue"));
+      hub.appendChild(retry);
     }
   }
 }
+
+document.querySelectorAll(".hub-blob").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!btn.disabled) openDashboardDetail(btn.dataset.section);
+  });
+});
+
+document.getElementById("detail-back")?.addEventListener("click", closeDashboardDetail);
+
+document.getElementById("detail-ama")?.addEventListener("click", () => {
+  const prompt = document.getElementById("detail-ama").dataset.prompt || "";
+  finishOnboarding();
+  if (prompt) setTimeout(() => send(prompt), 400);
+});
 
 document.getElementById("dashboard-continue")?.addEventListener("click", finishOnboarding);
 
@@ -754,7 +820,10 @@ function restoreChatHistory(history) {
       onboardingEl.classList.add("hidden");
       workspaceEl.classList.add("hidden");
       profileDashboardEl.classList.remove("hidden");
-      renderProfileDashboard(data.profile, data.metrics);
+      document.getElementById("dashboard-hub").classList.remove("hidden");
+      document.getElementById("dashboard-detail").classList.add("hidden");
+      document.getElementById("dashboard-name").textContent = userName || "there";
+      renderProfileDashboard(data.profile);
     } else if (onboardingDone) {
       onboardingEl.classList.add("hidden");
       profileDashboardEl.classList.add("hidden");
