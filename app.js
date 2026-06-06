@@ -169,6 +169,41 @@ function finishOnboarding() {
   enterWorkspace();
 }
 
+async function openProfileHub() {
+  onboardingEl.classList.add("hidden");
+  workspaceEl.classList.add("hidden");
+  profileDashboardEl.classList.remove("hidden");
+  profileDashboardEl.classList.remove("detail-open");
+  document.getElementById("dashboard-hub")?.classList.remove("hidden");
+  document.getElementById("dashboard-detail")?.classList.add("hidden");
+  document.getElementById("detail-back")?.classList.add("hidden");
+  document.getElementById("dashboard-retry")?.remove();
+  document.getElementById("dashboard-name").textContent = userName || "there";
+
+  if (cachedProfile && Object.keys(cachedProfile).length) {
+    renderProfileDashboard(cachedProfile);
+    return;
+  }
+
+  setHubBlobsEnabled(false);
+  setHubStatus("Loading your profile…");
+  document.getElementById("hub-archetype-badge")?.classList.add("hidden");
+
+  try {
+    const res = await fetch(`${API}/session`);
+    const data = await res.json();
+    if (data.profile && Object.keys(data.profile).length) {
+      cachedProfile = data.profile;
+      if (data.metrics) cachedMetrics = data.metrics;
+      renderProfileDashboard(data.profile);
+    } else {
+      setHubStatus("No profile yet — upload wearables during setup to generate one.");
+    }
+  } catch {
+    setHubStatus("Could not load your profile. Try again later.", true);
+  }
+}
+
 function formatProfileTip(tip) {
   if (!tip) return "";
   let text = tip.what || "";
@@ -363,6 +398,8 @@ document.getElementById("detail-ama")?.addEventListener("click", () => {
 });
 
 document.getElementById("dashboard-continue")?.addEventListener("click", finishOnboarding);
+
+document.getElementById("open-profile-hub")?.addEventListener("click", openProfileHub);
 
 function enterWorkspace() {
   document.getElementById("sidebar-name").textContent = userName || "there";

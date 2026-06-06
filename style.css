@@ -823,7 +823,27 @@ html, body {
   color: var(--text);
 }
 
-.sidebar-footer { padding: 10px 14px; margin-top: auto; }
+.sidebar-footer {
+  padding: 10px 14px;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.profile-btn {
+  width: 100%;
+  padding: 6px;
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: var(--radius);
+  background: rgba(99, 102, 241, 0.06);
+  cursor: pointer;
+}
+.profile-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.5);
+}
 .clear-btn {
   width: 100%;
   padding: 6px;
