@@ -13,7 +13,7 @@ import os
 import pdfplumber
 import io
 
-from services.nebius_client import get_literature_model, has_nebius_api_key, sync_client
+from services.openai_client import get_literature_model, has_api_key as has_openai_api_key, sync_client
 
 
 KNOWN_GENES = [
@@ -169,7 +169,7 @@ def parse_genesight_pdf(pdf_bytes: bytes) -> tuple[dict, str]:
     regex_genes = parse_with_regex(text)
     claude_genes = {}
 
-    if has_nebius_api_key():
+    if has_openai_api_key():
         claude_genes = parse_with_claude(text)
 
     genes = _merge_gene_dicts(claude_genes, regex_genes)

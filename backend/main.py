@@ -13,7 +13,8 @@ from parsers.lab_report import parse_lab_reports_batch
 from parsers.genesight import _merge_gene_dicts
 from parsers.apple_health import parse_apple_health_xml
 from services.claude import chat_with_context
-from services.nebius_client import has_nebius_api_key, list_available_model_ids, model_setup_hint
+from services.openai_client import has_api_key as has_openai_api_key
+from services.openai_client import list_available_model_ids, model_setup_hint
 from services.session_store import load_session, save_session, clear_session as wipe_session
 
 app = FastAPI(title="GenoFit API")
@@ -81,7 +82,7 @@ def apply_lab_upload(new_reports: list, new_genes: dict) -> None:
 
 
 def require_api_key() -> None:
-    if not has_nebius_api_key():
+    if not has_openai_api_key():
         raise HTTPException(
             503,
             "NEBIUS_API_KEY is not set. Create a key at https://tokenfactory.nebius.com/ and export it before using chat.",
@@ -187,19 +188,15 @@ async def chat(req: ChatRequest):
     except AuthenticationError:
         raise HTTPException(
             401,
-            "Invalid Nebius API key. Check that NEBIUS_API_KEY is set correctly in your shell.",
+            "Invalid API key. Check that NEBIUS_API_KEY is set correctly in your shell.",
         )
     except APIStatusError as e:
         detail = e.message
-        if e.status_code == 404 and "does not exist" in str(detail).lower():
-            detail = (
-                f"{detail} Nebius does not host anthropic/claude/* model IDs. "
-                "Unset GENOFIT_CHAT_MODEL or set it to a model from GET /api/models. "
-                f"{model_setup_hint()}"
-            )
-        raise HTTPException(502, f"Nebius API error: {detail}")
+        if e.status_code == 404:
+            detail = f"{detail} Set GENOFIT_CHAT_MODEL to a valid model (default: gpt-4o). {model_setup_hint()}"
+        raise HTTPException(502, f"ChatGPT API error: {detail}")
     except APIError as e:
-        raise HTTPException(502, f"Nebius API error: {str(e)}")
+        raise HTTPException(502, f"ChatGPT API error: {str(e)}")
     except Exception as e:
         raise HTTPException(500, f"Chat failed: {str(e)}")
 
@@ -219,7 +216,7 @@ def list_models():
     try:
         ids = sorted(list_available_model_ids())
     except Exception as e:
-        raise HTTPException(502, f"Could not list Nebius models: {e}")
+        raise HTTPException(502, f"Could not list models: {e}")
     return {
         "models": ids,
         "chat_model": model_setup_hint(),
@@ -230,8 +227,8 @@ def list_models():
 def health():
     return {
         "status": "ok",
-        "has_api_key": has_nebius_api_key(),
-        "model_hint": model_setup_hint() if has_nebius_api_key() else None,
+        "has_api_key": has_openai_api_key(),
+        "model_hint": model_setup_hint() if has_openai_api_key() else None,
     }
 
 

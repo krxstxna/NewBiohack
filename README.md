@@ -1,6 +1,6 @@
 # GenoFit
 
-A local platform that interprets your Apple Health wearable data through the lens of your GeneSight pharmacogenomic report using Claude AI.
+A local platform that interprets your Apple Health wearable data through the lens of your GeneSight pharmacogenomic report using ChatGPT.
 
 ---
 
@@ -22,11 +22,11 @@ NewBiohack/
 └── backend/
     ├── main.py                  # FastAPI app (upload + chat endpoints)
     ├── parsers/
-    │   ├── genesight.py         # PDF → gene dict (Claude Haiku + regex fallback)
+    │   ├── genesight.py         # PDF → gene dict (GPT + regex fallback)
     │   └── apple_health.py      # export.xml → summarized metrics
     ├── services/
-    │   ├── claude.py            # GenomeCoach chat via Nebius Token Factory
-    │   └── nebius_client.py     # Nebius Token Factory OpenAI-compatible client
+    │   ├── claude.py            # GenomeCoach chat (ChatGPT API)
+    │   └── openai_client.py     # ChatGPT-style API client (Nebius Token Factory)
     └── requirements.txt
 ```
 
@@ -54,28 +54,26 @@ pip install -r requirements.txt --upgrade
 
 ### 3. Set your Nebius API key
 
-All LLM inference (chat, PDF parsing, literature search) runs through **Nebius Token Factory** credits.
+GenoFit uses the **ChatGPT-style API** (`chat.completions`) through Nebius Token Factory:
 
 ```bash
 export NEBIUS_API_KEY=your-nebius-api-key
 ```
 
-Nebius hosts open-weight models (Kimi, Qwen, Llama, etc.) — **not** `anthropic/claude-*` IDs. GenoFit auto-picks from these defaults:
+Default GPT models on Nebius:
 
-| Use | Default model |
-|-----|----------------|
-| Chat (GenomeCoach) | `moonshotai/Kimi-K2.5` |
-| PDF extraction / literature search | `meta-llama/Meta-Llama-3.1-8B-Instruct` |
+| Use | Default `MODEL_ID` |
+|-----|---------------------|
+| Chat (GenomeCoach) | `openai/gpt-oss-120b` |
+| PDF extraction / literature search | `openai/gpt-oss-20b` |
 
-Optional overrides (copy exact IDs from your [Token Factory dashboard](https://tokenfactory.nebius.com/) or `GET http://localhost:8000/api/models`):
+Optional overrides (copy exact IDs from your Token Factory dashboard or `GET http://localhost:8000/api/models`):
 
 ```bash
-export GENOFIT_CHAT_MODEL=moonshotai/Kimi-K2.5
-export GENOFIT_LITERATURE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
-export NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1/
+export GENOFIT_CHAT_MODEL=openai/gpt-oss-120b
+export GENOFIT_LITERATURE_MODEL=openai/gpt-oss-20b
+export OPENAI_BASE_URL=https://api.tokenfactory.nebius.com/v1/
 ```
-
-If you previously set `GENOFIT_CHAT_MODEL=anthropic/claude-sonnet-4-6`, **unset it** — that model is not on Nebius.
 
 Add exports to your `~/.zshrc` or `~/.bashrc` to make them permanent.
 
@@ -127,7 +125,7 @@ Then restart the backend and reload the page.
 | POST | `/api/upload/apple-health` | Upload Apple Health XML |
 | POST | `/api/chat` | Send a chat message |
 | GET  | `/api/health` | Health check + API key status |
-| GET  | `/api/models` | List Nebius models available to your API key |
+| GET  | `/api/models` | List models available to your Nebius API key |
 | GET  | `/api/session` | Get current session state |
 | DELETE | `/api/session` | Clear all session data |
 | GET | `/docs` | Swagger UI |
@@ -137,7 +135,7 @@ Then restart the backend and reload the page.
 ## How gene parsing works
 
 1. Text is extracted from your GeneSight PDF using `pdfplumber`
-2. A fast Nebius model reads the text and extracts gene + phenotype pairs as structured JSON
+2. GPT-OSS on Nebius reads the text and extracts gene + phenotype pairs as structured JSON
 3. If the API call fails, a regex fallback scans for known gene names and phenotype terms
 4. The parsed genes are stored in-memory for the session
 
@@ -167,6 +165,6 @@ Then restart the backend and reload the page.
 
 ## Notes
 
-- All data stays local except inference requests sent to **Nebius Token Factory** (Claude models billed to your Nebius credits)
+- All data stays local except inference requests sent to **Nebius Token Factory** (ChatGPT-style API, GPT models)
 - Sessions persist in SQLite (`backend/genofit.db`) until you clear them or delete the file
 - Large Apple Health XML files (300MB+) may take 10–20 seconds to parse

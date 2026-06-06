@@ -1,8 +1,5 @@
 """
-GenomeCoach chat service — Claude via Nebius Token Factory.
-
-Builds a rich system prompt from lab reports, genetics, and wearables,
-returns structured JSON internally and a formatted athlete-facing reply.
+GenomeCoach chat service — ChatGPT-style API via Nebius Token Factory.
 """
 
 import json
@@ -10,7 +7,7 @@ import re
 
 from openai import AsyncOpenAI
 
-from services.nebius_client import async_client, get_chat_model, get_literature_model
+from services.openai_client import async_client, get_chat_model, get_literature_model
 
 MAX_HISTORY_TURNS = 20
 

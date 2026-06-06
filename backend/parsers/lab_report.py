@@ -15,7 +15,7 @@ from parsers.genesight import (
     parse_with_regex as parse_genes_regex,
     _merge_gene_dicts,
 )
-from services.nebius_client import get_literature_model, has_nebius_api_key, sync_client
+from services.openai_client import get_literature_model, has_api_key as has_openai_api_key, sync_client
 
 MARKER_PATTERNS = [
     (r"ferritin", r"ferritin[:\s]+(\d+\.?\d*)\s*(ng/mL|ug/L|µg/L)?", "Ferritin"),
@@ -119,7 +119,7 @@ def parse_lab_report_pdf(filename: str, pdf_bytes: bytes) -> tuple[dict, str | N
         }, None
 
     report = None
-    if has_nebius_api_key():
+    if has_openai_api_key():
         report = parse_with_claude(text, filename)
 
     genes = parse_genes_regex(text)
