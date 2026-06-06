@@ -13,7 +13,7 @@ import os
 import pdfplumber
 import io
 
-from services.nebius_client import LITERATURE_MODEL, has_nebius_api_key, sync_client
+from services.nebius_client import get_literature_model, has_nebius_api_key, sync_client
 
 
 KNOWN_GENES = [
@@ -63,7 +63,7 @@ Raw report text:
     try:
         client = sync_client()
         response = client.chat.completions.create(
-            model=LITERATURE_MODEL,
+            model=get_literature_model(),
             max_tokens=1500,
             response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt}],

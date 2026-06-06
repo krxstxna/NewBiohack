@@ -25,7 +25,7 @@ NewBiohack/
     │   ├── genesight.py         # PDF → gene dict (Claude Haiku + regex fallback)
     │   └── apple_health.py      # export.xml → summarized metrics
     ├── services/
-    │   ├── claude.py            # GenomeCoach chat via Nebius (Claude models)
+    │   ├── claude.py            # GenomeCoach chat via Nebius Token Factory
     │   └── nebius_client.py     # Nebius Token Factory OpenAI-compatible client
     └── requirements.txt
 ```
@@ -54,26 +54,30 @@ pip install -r requirements.txt --upgrade
 
 ### 3. Set your Nebius API key
 
-All Claude inference (chat, PDF parsing, literature search) runs through **Nebius Token Factory** credits — not the Anthropic API directly.
+All LLM inference (chat, PDF parsing, literature search) runs through **Nebius Token Factory** credits.
 
 ```bash
 export NEBIUS_API_KEY=your-nebius-api-key
 ```
 
-Optional overrides:
+Nebius hosts open-weight models (Kimi, Qwen, Llama, etc.) — **not** `anthropic/claude-*` IDs. GenoFit auto-picks from these defaults:
+
+| Use | Default model |
+|-----|----------------|
+| Chat (GenomeCoach) | `moonshotai/Kimi-K2.5` |
+| PDF extraction / literature search | `meta-llama/Meta-Llama-3.1-8B-Instruct` |
+
+Optional overrides (copy exact IDs from your [Token Factory dashboard](https://tokenfactory.nebius.com/) or `GET http://localhost:8000/api/models`):
 
 ```bash
-# Default: anthropic/claude-sonnet-4-6
-export GENOFIT_CHAT_MODEL=anthropic/claude-sonnet-4-6
-
-# Default: anthropic/claude-haiku-4-5-20251001 (PDF parsing + literature search)
-export GENOFIT_LITERATURE_MODEL=anthropic/claude-haiku-4-5-20251001
-
-# Default: https://api.tokenfactory.nebius.com/v1/
+export GENOFIT_CHAT_MODEL=moonshotai/Kimi-K2.5
+export GENOFIT_LITERATURE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 export NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1/
 ```
 
-Use the exact Claude model IDs shown in your Nebius Token Factory dashboard. Add this to your `~/.zshrc` or `~/.bashrc` to make it permanent.
+If you previously set `GENOFIT_CHAT_MODEL=anthropic/claude-sonnet-4-6`, **unset it** — that model is not on Nebius.
+
+Add exports to your `~/.zshrc` or `~/.bashrc` to make them permanent.
 
 ### 4. Start the backend
 
@@ -123,6 +127,7 @@ Then restart the backend and reload the page.
 | POST | `/api/upload/apple-health` | Upload Apple Health XML |
 | POST | `/api/chat` | Send a chat message |
 | GET  | `/api/health` | Health check + API key status |
+| GET  | `/api/models` | List Nebius models available to your API key |
 | GET  | `/api/session` | Get current session state |
 | DELETE | `/api/session` | Clear all session data |
 | GET | `/docs` | Swagger UI |
@@ -132,7 +137,7 @@ Then restart the backend and reload the page.
 ## How gene parsing works
 
 1. Text is extracted from your GeneSight PDF using `pdfplumber`
-2. Claude Haiku (via Nebius) reads the text and extracts gene + phenotype pairs as structured JSON
+2. A fast Nebius model reads the text and extracts gene + phenotype pairs as structured JSON
 3. If the API call fails, a regex fallback scans for known gene names and phenotype terms
 4. The parsed genes are stored in-memory for the session
 

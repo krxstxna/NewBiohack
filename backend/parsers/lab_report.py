@@ -15,7 +15,7 @@ from parsers.genesight import (
     parse_with_regex as parse_genes_regex,
     _merge_gene_dicts,
 )
-from services.nebius_client import LITERATURE_MODEL, has_nebius_api_key, sync_client
+from services.nebius_client import get_literature_model, has_nebius_api_key, sync_client
 
 MARKER_PATTERNS = [
     (r"ferritin", r"ferritin[:\s]+(\d+\.?\d*)\s*(ng/mL|ug/L|µg/L)?", "Ferritin"),
@@ -82,7 +82,7 @@ Text:
     try:
         client = sync_client()
         response = client.chat.completions.create(
-            model=LITERATURE_MODEL,
+            model=get_literature_model(),
             max_tokens=2000,
             response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt}],

@@ -10,7 +10,7 @@ import re
 
 from openai import AsyncOpenAI
 
-from services.nebius_client import CHAT_MODEL, LITERATURE_MODEL, async_client
+from services.nebius_client import async_client, get_chat_model, get_literature_model
 
 MAX_HISTORY_TURNS = 20
 
@@ -118,7 +118,7 @@ LITERATURE_SEARCH_TOOL = {
 
 async def run_literature_search(client: AsyncOpenAI, query: str) -> str:
     response = await client.chat.completions.create(
-        model=LITERATURE_MODEL,
+        model=get_literature_model(),
         max_tokens=500,
         messages=[
             {
@@ -306,7 +306,7 @@ async def chat_with_context(
 
     for _ in range(8):
         response = await client.chat.completions.create(
-            model=CHAT_MODEL,
+            model=get_chat_model(),
             max_tokens=3000,
             messages=messages,
             tools=[LITERATURE_SEARCH_TOOL],
