@@ -477,10 +477,11 @@ function restoreChatHistory(history) {
       workspaceEl.classList.remove("hidden");
       enterWorkspace();
       restoreChatHistory(data.history || []);
-    } else if (hasData) {
-      showStep(1);
+    } else {
+      showStep(0);
     }
   } catch {
     if (saved.complete) showResetLink(true);
+    showStep(0);
   }
 })();
