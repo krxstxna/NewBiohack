@@ -1,8 +1,14 @@
 /* ── Config ─────────────────────────────────────────────────────── */
-const API = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-  && window.location.port !== "8000"
-  ? "http://localhost:8000"
-  : window.location.origin;
+function getApiBase() {
+  const { protocol, hostname, port } = window.location;
+  if (port === "8000") return `${protocol}//${hostname}:${port}/api`;
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return `${protocol}//${hostname}:8000/api`;
+  }
+  return `${window.location.origin}/api`;
+}
+
+const API = getApiBase();
 
 /* ── State ──────────────────────────────────────────────────────── */
 let isLoading = false;
@@ -36,6 +42,7 @@ document.getElementById("genesight-input").addEventListener("change", async (e) 
     addAiMessage(`✓ I've read your GeneSight report. Found <strong>${Object.keys(data.genes).length} genes</strong>: ${Object.keys(data.genes).join(", ")}. Ask me anything about how they affect your health data.`);
   } catch (err) {
     setUploadState("genesight", "error", `Error: ${formatFetchError(err)}`);
+    e.target.value = "";
   }
 });
 
@@ -250,7 +257,7 @@ function formatApiError(data, status) {
 
 function formatFetchError(err) {
   if (err.message === "Failed to fetch") {
-    return `Could not reach the backend at ${API}. Start it with: cd backend && python3 main.py`;
+    return `Could not reach the backend at ${API.replace("/api", "")}. Start it with: cd backend && python3 main.py`;
   }
   return err.message;
 }

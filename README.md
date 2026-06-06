@@ -86,12 +86,12 @@ You can also open `index.html` directly if you prefer — it will talk to the ba
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/upload/genesight` | Upload GeneSight PDF |
-| POST | `/upload/apple-health` | Upload Apple Health XML |
-| POST | `/chat` | Send a chat message |
-| GET  | `/health` | Health check + API key status |
-| GET  | `/session` | Get current session state |
-| DELETE | `/session` | Clear all session data |
+| POST | `/api/upload/genesight` | Upload GeneSight PDF |
+| POST | `/api/upload/apple-health` | Upload Apple Health XML |
+| POST | `/api/chat` | Send a chat message |
+| GET  | `/api/health` | Health check + API key status |
+| GET  | `/api/session` | Get current session state |
+| DELETE | `/api/session` | Clear all session data |
 | GET | `/docs` | Swagger UI |
 
 ---

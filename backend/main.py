@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import anthropic
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import APIRouter, FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
@@ -14,6 +15,7 @@ from services.claude import chat_with_context
 from services.session_store import load_session, save_session, clear_session as wipe_session
 
 app = FastAPI(title="GenoFit API")
+api = APIRouter(prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,27 +44,38 @@ def require_api_key() -> None:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise HTTPException(
             503,
-            "ANTHROPIC_API_KEY is not set. Export it before using chat or GeneSight parsing.",
+            "ANTHROPIC_API_KEY is not set. Export it before using chat.",
         )
+
+
+def validate_pdf_upload(file: UploadFile) -> None:
+    filename = (file.filename or "").lower()
+    content_type = (file.content_type or "").lower()
+    if not filename.endswith(".pdf") and content_type != "application/pdf":
+        raise HTTPException(400, "Please upload a PDF file.")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        raise exc
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 
 # ── Upload endpoints ──────────────────────────────────────────────────────────
 
-@app.post("/upload/genesight")
+@api.post("/upload/genesight")
 async def upload_genesight(file: UploadFile = File(...)):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(400, "Please upload a PDF file.")
+    validate_pdf_upload(file)
     try:
         contents = await file.read()
-        genes = parse_genesight_pdf(contents)
+        genes, debug = parse_genesight_pdf(contents)
     except Exception as e:
         raise HTTPException(500, f"GeneSight upload failed: {str(e)}")
 
     if not genes:
-        raise HTTPException(
-            422,
-            "Could not extract gene data from this PDF. Make sure it's a GeneSight report.",
-        )
+        hint = debug or "Make sure it's a GeneSight report PDF with selectable text."
+        raise HTTPException(422, f"Could not extract gene data from this PDF. {hint}")
 
     session["genes"] = genes
     session["history"] = []
@@ -70,9 +83,10 @@ async def upload_genesight(file: UploadFile = File(...)):
     return {"status": "ok", "genes": genes}
 
 
-@app.post("/upload/apple-health")
+@api.post("/upload/apple-health")
 async def upload_apple_health(file: UploadFile = File(...)):
-    if not file.filename.endswith(".xml"):
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".xml"):
         raise HTTPException(400, "Please upload the export.xml from Apple Health.")
     try:
         contents = await file.read()
@@ -91,7 +105,7 @@ class ChatRequest(BaseModel):
     message: str
 
 
-@app.post("/chat")
+@api.post("/chat")
 async def chat(req: ChatRequest):
     if not session["genes"] and not session["metrics"]:
         return {"reply": "Please upload your GeneSight PDF and Apple Health export first, then I can help interpret your data."}
@@ -122,7 +136,7 @@ async def chat(req: ChatRequest):
 
 # ── State endpoints ───────────────────────────────────────────────────────────
 
-@app.get("/health")
+@api.get("/health")
 def health():
     return {
         "status": "ok",
@@ -130,7 +144,7 @@ def health():
     }
 
 
-@app.get("/session")
+@api.get("/session")
 def get_session():
     return {
         "has_genes": bool(session["genes"]),
@@ -142,7 +156,7 @@ def get_session():
     }
 
 
-@app.delete("/session")
+@api.delete("/session")
 def clear_session():
     session["genes"] = {}
     session["metrics"] = {}
@@ -150,6 +164,16 @@ def clear_session():
     wipe_session()
     return {"status": "cleared"}
 
+
+app.include_router(api)
+
+# Legacy routes (older frontend builds called these without /api prefix)
+app.add_api_route("/upload/genesight", upload_genesight, methods=["POST"])
+app.add_api_route("/upload/apple-health", upload_apple_health, methods=["POST"])
+app.add_api_route("/chat", chat, methods=["POST"])
+app.add_api_route("/health", health, methods=["GET"])
+app.add_api_route("/session", get_session, methods=["GET"])
+app.add_api_route("/session", clear_session, methods=["DELETE"])
 
 # ── Frontend (must be mounted after API routes) ─────────────────────────────
 
