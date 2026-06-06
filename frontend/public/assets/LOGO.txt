@@ -1,0 +1,14 @@
+Place your logo files here (replace the existing files):
+
+  genofit-logo.png          preferred — dark background version (white text)
+  genofit-logo.svg          alternative
+  genofit-logo-light.png    favicon / light version
+  genofit-logo-light.svg    alternative
+
+After replacing, from the frontend folder run:
+
+  npm run build
+
+Then restart the backend and hard-refresh the browser (Ctrl+Shift+R).
+
+Only files in THIS folder are copied into the app. Do not edit dist/ directly.
