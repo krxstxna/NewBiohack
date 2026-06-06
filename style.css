@@ -1155,6 +1155,10 @@ html, body {
   background: var(--navy-mid);
 }
 
+#chat-compose-area.radar-hidden {
+  grid-template-columns: 1fr;
+}
+
 #input-row {
   display: flex;
   align-items: flex-end;
@@ -1261,6 +1265,17 @@ html, body {
   border-color: var(--blue);
   background: var(--blue-lt);
   color: var(--text);
+}
+
+.radar-tab:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.radar-tab:disabled:hover {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--muted);
 }
 
 .radar-chart-wrap {

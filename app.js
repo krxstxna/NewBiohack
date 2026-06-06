@@ -68,27 +68,25 @@ const RADAR_SECTIONS = {
     title: "Training signals",
     pageKey: "train",
     color: "rgba(234, 88, 12, 0.9)",
-    fallbackMetrics: ["hrv", "resting_hr", "steps", "vo2_max"],
   },
   fuel: {
     title: "Fuel signals",
     pageKey: "fuel",
     color: "rgba(22, 163, 74, 0.9)",
-    fallbackMetrics: ["active_calories", "steps", "sleep"],
   },
   recovery: {
     title: "Recovery signals",
     pageKey: "rest_recovery",
     color: "rgba(37, 99, 235, 0.9)",
-    fallbackMetrics: ["sleep", "hrv", "resting_hr", "spo2"],
   },
   story: {
     title: "Your Story signals",
     pageKey: "your_story",
     color: "rgba(126, 34, 206, 0.9)",
-    fallbackMetrics: ["hrv", "resting_hr", "sleep", "spo2"],
   },
 };
+
+const MIN_RADAR_POINTS = 3;
 
 function getPrimaryArchetype(profile) {
   if (!profile) return {};
@@ -213,6 +211,7 @@ const labSection   = document.getElementById("lab-section");
 const labReportList = document.getElementById("lab-report-list");
 const metricsSection = document.getElementById("metrics-section");
 const metricsList  = document.getElementById("metrics-list");
+const chatComposeArea = document.getElementById("chat-compose-area");
 const bubbleRadarPanel = document.getElementById("bubble-radar-panel");
 const bubbleRadarCanvas = document.getElementById("bubble-radar-chart");
 const bubbleRadarTitle = document.getElementById("bubble-radar-title");
@@ -530,30 +529,8 @@ function normalizeProfileMetric(metric) {
   return clampScore(Math.min(100, Math.log10(raw) * 25));
 }
 
-function metricPoint(label, value, unit = "") {
-  const score = normalizeProfileMetric({ label, value, unit });
-  return score == null ? null : { label: readableRadarLabel(label), score, sourceValue: value, unit };
-}
-
-function fallbackRadarPoints(sectionId) {
-  const metrics = cachedMetrics || {};
-  const points = [];
-  const add = (point) => { if (point) points.push(point); };
-  for (const key of RADAR_SECTIONS[sectionId]?.fallbackMetrics || []) {
-    const m = metrics[key] || {};
-    if (key === "hrv") add(metricPoint("HRV", m.latest_ms ?? m.avg_ms, "ms"));
-    if (key === "resting_hr") add(metricPoint("Resting HR", m.latest_bpm ?? m.avg_bpm, "bpm"));
-    if (key === "spo2") add(metricPoint("SpO2", m.latest_pct ?? m.avg_pct, "%"));
-    if (key === "sleep") add(metricPoint("Sleep", m.avg_hours, "hrs"));
-    if (key === "steps") add(metricPoint("Steps", m.avg_daily, "steps"));
-    if (key === "vo2_max") add(metricPoint("VO2 Max", m.latest, "mL/kg/min"));
-    if (key === "active_calories") add(metricPoint("Active calories", m.avg_daily_kcal, "kcal"));
-  }
-  return points;
-}
-
 function profileRadarPoints(sectionId) {
-  if (!cachedProfile) return fallbackRadarPoints(sectionId);
+  if (!cachedProfile) return [];
   if (sectionId === "story" && cachedProfile.archetype?.scores) {
     return Object.entries(cachedProfile.archetype.scores)
       .slice(0, 8)
@@ -577,7 +554,7 @@ function profileRadarPoints(sectionId) {
     .filter(Boolean)
     .slice(0, 6);
 
-  return points.length >= 3 ? points : fallbackRadarPoints(sectionId);
+  return points.length >= MIN_RADAR_POINTS ? points : [];
 }
 
 function firstSentences(text, max = 1) {
@@ -618,13 +595,40 @@ function setRadarEmpty(message) {
   }
 }
 
+function radarEligibleSections() {
+  return Object.keys(RADAR_SECTIONS).filter((sectionId) => {
+    return profileRadarPoints(sectionId).length >= MIN_RADAR_POINTS;
+  });
+}
+
 function renderChatRadarPanel() {
   if (!bubbleRadarPanel || !bubbleRadarCanvas) return;
+  const eligibleSections = radarEligibleSections();
+  if (!eligibleSections.length) {
+    bubbleRadarPanel.classList.add("hidden");
+    chatComposeArea?.classList.add("radar-hidden");
+    if (chatRadarChart) {
+      chatRadarChart.destroy();
+      chatRadarChart = null;
+    }
+    return;
+  }
+
+  if (!eligibleSections.includes(activeRadarSection)) {
+    activeRadarSection = eligibleSections[0];
+  }
+
+  bubbleRadarPanel.classList.remove("hidden");
+  chatComposeArea?.classList.remove("radar-hidden");
   const cfg = RADAR_SECTIONS[activeRadarSection] || RADAR_SECTIONS.training;
   const points = profileRadarPoints(activeRadarSection);
 
   document.querySelectorAll(".radar-tab").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.radarSection === activeRadarSection);
+    const sectionId = btn.dataset.radarSection || "";
+    const isEligible = eligibleSections.includes(sectionId);
+    btn.classList.toggle("active", sectionId === activeRadarSection);
+    btn.disabled = !isEligible;
+    btn.title = isEligible ? "" : "Add more relevant data for this bubble to generate a chart.";
   });
   if (bubbleRadarTitle) bubbleRadarTitle.textContent = cfg.title;
   if (bubbleRadarSummary) {
@@ -643,8 +647,8 @@ function renderChatRadarPanel() {
     setRadarEmpty("Chart rendering is still loading. Try again in a moment.");
     return;
   }
-  if (points.length < 3) {
-    setRadarEmpty("Upload data and generate your profile to see this bubble's radar chart.");
+  if (points.length < MIN_RADAR_POINTS) {
+    setRadarEmpty("Add more relevant data for this bubble to generate a chart.");
     return;
   }
 
@@ -694,6 +698,7 @@ function renderChatRadarPanel() {
 
 document.querySelectorAll(".radar-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
+    if (btn.disabled) return;
     activeRadarSection = btn.dataset.radarSection || "training";
     renderChatRadarPanel();
   });
