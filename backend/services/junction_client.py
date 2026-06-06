@@ -4,6 +4,7 @@ import os
 
 from junction import Junction
 from junction.environment import JunctionEnvironment
+from junction.types.demo_providers import DemoProviders
 from junction.types.providers import Providers
 
 JUNCTION_BASE_URL = os.environ.get(
@@ -20,6 +21,11 @@ _PROVIDER_MAP = {
     "fitbit": Providers.FITBIT,
     "garmin": Providers.GARMIN,
     "whoop": Providers.WHOOP,
+}
+
+_DEMO_PROVIDER_MAP = {
+    "oura": DemoProviders.OURA,
+    "fitbit": DemoProviders.FITBIT,
 }
 
 
@@ -42,6 +48,50 @@ def resolve_provider(name: str | None) -> Providers | None:
     if not name:
         return None
     return _PROVIDER_MAP.get(name.strip().lower())
+
+
+def is_junction_sandbox() -> bool:
+    return os.environ.get("JUNCTION_ENV", "sandbox").strip().lower() == "sandbox"
+
+
+def provider_is_connected(user_id: str, provider: str) -> bool:
+    slug = provider.strip().lower()
+    return slug in {s.lower() for s in get_connected_provider_slugs(user_id)}
+
+
+def ensure_provider_connection(
+    user_id: str,
+    provider: str,
+    redirect_url: str | None = None,
+) -> dict:
+    """
+    Connect a wearable provider for data access.
+
+    Sandbox oura/fitbit: auto-connect demo synthetic data (no OAuth).
+    Production (or unsupported demo providers): return OAuth link URL.
+    """
+    slug = provider.strip().lower()
+    if provider_is_connected(user_id, slug):
+        return {
+            "mode": "connected",
+            "connected_providers": get_connected_provider_slugs(user_id),
+        }
+
+    if is_junction_sandbox() and slug in _DEMO_PROVIDER_MAP:
+        client = get_junction_client()
+        resp = client.link.connect_demo_provider(
+            user_id=user_id,
+            provider=_DEMO_PROVIDER_MAP[slug],
+        )
+        return {
+            "mode": "demo",
+            "success": resp.success,
+            "detail": resp.detail,
+            "connected_providers": get_connected_provider_slugs(user_id),
+        }
+
+    token_data = create_link_token(user_id, slug, redirect_url)
+    return {"mode": "oauth", **token_data}
 
 
 def get_or_create_user(client_user_id: str) -> str:

@@ -17,9 +17,11 @@ from services.openai_client import has_api_key as has_openai_api_key
 from services.openai_client import list_available_model_ids, model_setup_hint
 from services.junction_client import (
     create_link_token,
+    ensure_provider_connection,
     get_connected_provider_slugs,
     get_or_create_user,
     has_junction_api_key,
+    is_junction_sandbox,
     resolve_provider,
 )
 from parsers.junction_wearables import fetch_junction_metrics, merge_wearable_metrics
@@ -211,6 +213,60 @@ async def upload_apple_health(
     return result
 
 
+@api.post("/junction/connect")
+async def junction_connect(
+    provider: str = Form(...),
+    client_user_id: str = Form(""),
+    redirect_url: str = Form(""),
+):
+    """
+    Connect a provider and pull metrics.
+
+    Sandbox oura/fitbit: uses Junction demo data (no login).
+    Production: returns link_web_url for OAuth.
+    """
+    if not has_junction_api_key():
+        raise HTTPException(
+            503,
+            "Junction API is not configured. Set JUNCTION_API_KEY.",
+        )
+    if not resolve_provider(provider):
+        raise HTTPException(400, f"Unsupported provider: {provider}")
+
+    try:
+        uid = _junction_client_user_id(client_user_id)
+        junction_user_id = get_or_create_user(uid)
+        session["junction_user_id"] = junction_user_id
+
+        connection = ensure_provider_connection(
+            junction_user_id,
+            provider,
+            redirect_url or None,
+        )
+        if connection.get("mode") == "oauth":
+            persist_session()
+            return {
+                "status": "oauth_required",
+                "connection": connection,
+                "link_token": connection.get("link_token"),
+                "link_web_url": connection.get("link_web_url"),
+                "junction_user_id": junction_user_id,
+            }
+
+        existing = session.get("metrics") or {}
+        metrics, junction_meta = _merge_junction_metrics(existing, client_user_id)
+        session["metrics"] = metrics
+        persist_session()
+        return {
+            "status": "ok",
+            "metrics": metrics,
+            "junction": junction_meta,
+            "connection": connection,
+        }
+    except Exception as e:
+        raise HTTPException(502, f"Junction connect failed: {str(e)}") from e
+
+
 @api.post("/junction/sync")
 async def junction_sync(client_user_id: str = Form("")):
     """Refresh wearable metrics from Junction (Oura, Garmin, etc.)."""
@@ -329,6 +385,7 @@ def health():
         "has_api_key": has_openai_api_key(),
         "has_junction_api_key": has_junction_api_key(),
         "junction_env": os.getenv("JUNCTION_ENV", "sandbox"),
+        "junction_sandbox_demo": is_junction_sandbox(),
         "model_hint": model_setup_hint() if has_openai_api_key() else None,
     }
 

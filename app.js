@@ -271,17 +271,18 @@ document.getElementById("apple-input").addEventListener("change", async (e) => {
 
 async function connectJunctionWearable(wearable) {
   const label = JUNCTION_PROVIDERS[wearable] || wearable;
-  setWizardUploadState("apple", "loading", `Opening ${label} sign-in…`);
+  setWizardUploadState("apple", "loading", `Connecting ${label}…`);
 
-  const redirectUrl = `${window.location.origin}${window.location.pathname}?junction_provider=${encodeURIComponent(wearable)}`;
-  const params = new URLSearchParams({
-    client_user_id: userName || "genofit-local",
-    provider: wearable,
-    redirect_url: redirectUrl,
-  });
+  const form = new FormData();
+  form.append("provider", wearable);
+  form.append("client_user_id", userName || "genofit-local");
+  form.append(
+    "redirect_url",
+    `${window.location.origin}${window.location.pathname}?junction_provider=${encodeURIComponent(wearable)}`
+  );
 
   try {
-    const res = await fetch(`${API}/junction/link-token?${params}`);
+    const res = await fetch(`${API}/junction/connect`, { method: "POST", body: form });
     const data = await parseApiResponse(res);
     if (!res.ok) throw new Error(formatApiError(data, res.status));
 
@@ -289,7 +290,25 @@ async function connectJunctionWearable(wearable) {
       window.location.href = data.link_web_url;
       return;
     }
-    throw new Error("Junction did not return a link URL.");
+
+    renderMetrics(data.metrics);
+    const count = Object.keys(data.metrics || {}).filter(
+      (k) => !k.startsWith("junction_") && k !== "sources"
+    ).length;
+    const mode = data.connection?.mode;
+    let status = count
+      ? `${count} metrics synced`
+      : mode === "demo"
+        ? `${label} demo data connected — syncing may take a moment`
+        : `${label} connected`;
+    if (data.junction?.sources?.length) {
+      status += ` · Junction (${data.junction.sources.join(", ")})`;
+    }
+    if (data.junction?.errors?.length) {
+      status += ` · ${data.junction.errors[0]}`;
+    }
+    setWizardUploadState("apple", "ok", status);
+    setTimeout(finishOnboarding, count ? 600 : 1200);
   } catch (err) {
     setWizardUploadState("apple", "error", formatFetchError(err));
   }

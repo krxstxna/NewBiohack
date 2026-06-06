@@ -87,7 +87,12 @@ export JUNCTION_ENV=sandbox
 export JUNCTION_BASE_URL=https://api.sandbox.us.junction.com
 ```
 
-Oura/Garmin buttons open **Junction Link** (OAuth) to connect your device, then sync metrics. Apple Health upload also pulls Junction data when the key is set.
+Oura/Fitbit buttons connect via Junction and pull metrics automatically.
+
+- **Sandbox** (`JUNCTION_ENV=sandbox`, default): Oura and Fitbit use Junction **demo data** — no Oura/Fitbit login required.
+- **Production**: users must complete OAuth through Junction Link for real device data.
+
+Apple Health still uses local XML upload; Junction merge runs when the API key is set.
 
 ### 4. Start the backend
 
@@ -135,6 +140,7 @@ Then restart the backend and reload the page.
 |--------|------|-------------|
 | POST | `/api/upload/genesight` | Upload GeneSight PDF |
 | POST | `/api/upload/apple-health` | Upload Apple Health XML (+ Junction merge if configured) |
+| POST | `/api/junction/connect` | Connect provider + pull metrics (demo in sandbox, OAuth in prod) |
 | POST | `/api/junction/sync` | Refresh wearables from Junction (Oura, Garmin, etc.) |
 | GET  | `/api/junction/link-token` | Link token for Junction Link widget |
 | POST | `/api/chat` | Send a chat message |
